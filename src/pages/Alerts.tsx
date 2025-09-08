@@ -1,47 +1,21 @@
 import { useState } from "react";
-import { AlertTriangle, CheckCircle, Clock, Settings } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, Settings, Trash2, MoreVertical } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-
-const alertRules = [
-  {
-    id: "1",
-    name: "High Error Rate",
-    description: "Trigger when error rate exceeds 5% in 5 minutes",
-    severity: "critical",
-    enabled: true,
-    lastTriggered: "2 hours ago",
-    status: "active"
-  },
-  {
-    id: "2", 
-    name: "Database Connection Timeout",
-    description: "Alert when database connections timeout",
-    severity: "warning",
-    enabled: true,
-    lastTriggered: "Never",
-    status: "pending"
-  },
-  {
-    id: "3",
-    name: "Memory Usage High",
-    description: "Alert when memory usage exceeds 85%",
-    severity: "warning", 
-    enabled: false,
-    lastTriggered: "1 day ago",
-    status: "disabled"
-  }
-];
+import { AlertRuleDialog } from "@/components/alert-rule-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useAlertRules } from "@/hooks/use-alert-rules";
+import { useAlertEvents } from "@/hooks/use-alert-events";
+import { formatDistanceToNow } from "date-fns";
 
 export default function Alerts() {
-  const [newRuleName, setNewRuleName] = useState("");
-  const [newRuleCondition, setNewRuleCondition] = useState("");
-  const [newRuleSeverity, setNewRuleSeverity] = useState("warning");
+  const { rules, loading: rulesLoading, createRule, updateRule, deleteRule, toggleRule } = useAlertRules();
+  const { events, loading: eventsLoading, resolveEvent, deleteEvent, getEventCountsBySeverity } = useAlertEvents();
+  
+  const eventCounts = getEventCountsBySeverity();
+  const activeEvents = events.filter(event => event.status === 'active');
 
   const getSeverityBadge = (severity: string) => {
     switch (severity) {
@@ -69,6 +43,17 @@ export default function Alerts() {
     }
   };
 
+  const handleDeleteRule = async (id: string, name: string) => {
+    if (confirm(`Are you sure you want to delete the rule "${name}"?`)) {
+      await deleteRule(id);
+    }
+  };
+
+  const formatTimeAgo = (date: string | null) => {
+    if (!date) return 'Never';
+    return formatDistanceToNow(new Date(date), { addSuffix: true });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="space-y-6 p-6">
@@ -80,106 +65,227 @@ export default function Alerts() {
           </p>
         </div>
 
-        {/* Alert Rules Configuration */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Create New Alert Rule */}
-          <Card className="lg:col-span-1 bg-gradient-card border-border/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                New Alert Rule
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="rule-name">Rule Name</Label>
-                <Input
-                  id="rule-name"
-                  placeholder="e.g., High CPU Usage"
-                  value={newRuleName}
-                  onChange={(e) => setNewRuleName(e.target.value)}
-                />
+        {/* Alert Overview */}
+        <div className="grid gap-6 md:grid-cols-3 mb-6">
+          <Card className="bg-gradient-card border-border/50">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Active Alerts</p>
+                  <p className="text-2xl font-bold">{activeEvents.length}</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-warning" />
               </div>
-              
-              <div>
-                <Label htmlFor="rule-condition">Condition</Label>
-                <Input
-                  id="rule-condition"
-                  placeholder="e.g., cpu_usage > 80%"
-                  value={newRuleCondition}
-                  onChange={(e) => setNewRuleCondition(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="rule-severity">Severity</Label>
-                <Select value={newRuleSeverity} onValueChange={setNewRuleSeverity}>
-                  <SelectTrigger id="rule-severity">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="info">Info</SelectItem>
-                    <SelectItem value="warning">Warning</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button className="w-full" disabled={!newRuleName || !newRuleCondition}>
-                Create Alert Rule
-              </Button>
             </CardContent>
           </Card>
-
-          {/* Existing Alert Rules */}
-          <Card className="lg:col-span-2 bg-gradient-card border-border/50">
-            <CardHeader>
-              <CardTitle>Active Alert Rules</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {alertRules.map((rule) => (
-                  <div key={rule.id} className="flex items-center justify-between p-4 border border-border/50 rounded-lg bg-background/50">
-                    <div className="flex items-center gap-3">
-                      {getStatusIcon(rule.status, rule.enabled)}
-                      <div>
-                        <h4 className="font-medium">{rule.name}</h4>
-                        <p className="text-sm text-muted-foreground">{rule.description}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {getSeverityBadge(rule.severity)}
-                          <span className="text-xs text-muted-foreground">
-                            Last triggered: {rule.lastTriggered}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={rule.enabled}
-                        onCheckedChange={() => {}}
-                      />
-                      <Button variant="outline" size="sm">
-                        Edit
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+          <Card className="bg-gradient-card border-border/50">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Critical</p>
+                  <p className="text-2xl font-bold text-destructive">{eventCounts.critical}</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-destructive" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-card border-border/50">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Alert Rules</p>
+                  <p className="text-2xl font-bold">{rules.length}</p>
+                </div>
+                <Settings className="h-8 w-8 text-primary" />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Alert History */}
+        {/* Alert Rules Management */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Quick Actions */}
+          <Card className="lg:col-span-1 bg-gradient-card border-border/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Quick Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <AlertRuleDialog onSave={createRule} />
+              <div className="text-sm text-muted-foreground">
+                <p>Create custom alert rules to monitor your system proactively.</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Monitor error rates</li>
+                  <li>Track performance metrics</li>
+                  <li>Database health checks</li>
+                  <li>Custom SQL queries</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Alert Rules List */}
+          <Card className="lg:col-span-2 bg-gradient-card border-border/50">
+            <CardHeader>
+              <CardTitle>Alert Rules ({rules.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {rulesLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading alert rules...
+                </div>
+              ) : rules.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No alert rules configured</p>
+                  <p className="text-sm">Create your first alert rule to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {rules.map((rule) => (
+                    <div key={rule.id} className="flex items-center justify-between p-4 border border-border/50 rounded-lg bg-background/50">
+                      <div className="flex items-center gap-3">
+                        {getStatusIcon(rule.enabled ? 'active' : 'disabled', rule.enabled)}
+                        <div>
+                          <h4 className="font-medium">{rule.name}</h4>
+                          {rule.query && (
+                            <p className="text-sm text-muted-foreground font-mono bg-muted/50 px-2 py-1 rounded mt-1">
+                              {rule.query.length > 60 ? `${rule.query.substring(0, 60)}...` : rule.query}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-2">
+                            {getSeverityBadge(rule.severity)}
+                            <span className="text-xs text-muted-foreground">
+                              Throttle: {rule.throttle_seconds}s
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              Created: {formatTimeAgo(rule.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={rule.enabled}
+                          onCheckedChange={(checked) => toggleRule(rule.id, checked)}
+                        />
+                        <AlertRuleDialog 
+                          rule={rule} 
+                          onSave={(data) => updateRule(rule.id, data)} 
+                        />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem 
+                              className="text-destructive"
+                              onClick={() => handleDeleteRule(rule.id, rule.name)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Rule
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Alert Events */}
         <Card className="bg-gradient-card border-border/50">
           <CardHeader>
-            <CardTitle>Recent Alerts</CardTitle>
+            <CardTitle>Recent Alert Events ({events.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No recent alerts</p>
-              <p className="text-sm">Alert history will appear here when rules are triggered</p>
-            </div>
+            {eventsLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Loading alert events...
+              </div>
+            ) : events.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No alert events</p>
+                <p className="text-sm">Alert events will appear here when rules are triggered</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {events.slice(0, 10).map((event) => (
+                  <div key={event.id} className="flex items-center justify-between p-3 border border-border/50 rounded-lg bg-background/50">
+                    <div className="flex items-center gap-3">
+                      {getStatusIcon(event.status, true)}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium">{event.alert_rules?.name || 'Unknown Rule'}</h4>
+                          {getSeverityBadge(event.alert_rules?.severity || 'info')}
+                          {event.status === 'resolved' && (
+                            <Badge variant="outline" className="text-success border-success">
+                              Resolved
+                            </Badge>
+                          )}
+                        </div>
+                        {event.message && (
+                          <p className="text-sm text-muted-foreground mt-1">{event.message}</p>
+                        )}
+                        {event.endpoints?.url && (
+                          <p className="text-xs text-muted-foreground">
+                            Endpoint: {event.endpoints.url}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <span>Occurred: {formatTimeAgo(event.occurred_at)}</span>
+                          {event.resolved_at && (
+                            <span>• Resolved: {formatTimeAgo(event.resolved_at)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {event.status === 'active' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => resolveEvent(event.id)}
+                        >
+                          Resolve
+                        </Button>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => deleteEvent(event.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Event
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ))}
+                {events.length > 10 && (
+                  <div className="text-center pt-4">
+                    <p className="text-sm text-muted-foreground">
+                      Showing 10 of {events.length} events
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
