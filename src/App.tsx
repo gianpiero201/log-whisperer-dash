@@ -6,6 +6,11 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { LogSidebar } from "@/components/log-sidebar";
 import Dashboard from "./pages/Dashboard";
+import Logs from "./pages/Logs";
+import Alerts from "./pages/Alerts";
+import Analytics from "./pages/Analytics";
+import Search from "./pages/Search";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,7 +41,11 @@ const App = () => (
               <main className="flex-1">
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="/logs" element={<Logs />} />
+                  <Route path="/alerts" element={<Alerts />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/search" element={<Search />} />
+                  <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>

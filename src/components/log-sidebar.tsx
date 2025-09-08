@@ -84,20 +84,20 @@ export function LogSidebar() {
               <div className="p-3 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Active Logs</span>
-                  <span className="text-success font-mono">1,234</span>
+                  <span className="text-success font-mono">—</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Errors</span>
-                  <span className="text-error font-mono">12</span>
+                  <span className="text-error font-mono">—</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Warnings</span>
-                  <span className="text-warning font-mono">56</span>
+                  <span className="text-warning font-mono">—</span>
                 </div>
                 <div className="w-full bg-secondary/50 rounded-full h-1.5 mt-2">
-                  <div className="bg-gradient-primary h-1.5 rounded-full" style={{ width: '78%' }}></div>
+                  <div className="bg-gradient-primary h-1.5 rounded-full" style={{ width: '0%' }}></div>
                 </div>
-                <p className="text-xs text-muted-foreground text-center">System Health: 78%</p>
+                <p className="text-xs text-muted-foreground text-center">System Health: —</p>
               </div>
             </SidebarGroupContent>
           </SidebarGroup>
