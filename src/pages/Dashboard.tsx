@@ -2,6 +2,7 @@ import { Activity, AlertTriangle, Database, TrendingUp } from "lucide-react";
 import { MetricCard } from "@/components/metric-card";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { LogTable } from "@/components/log-table";
+import { BackendMonitor } from "@/components/backend-monitor";
 
 export default function Dashboard() {
   return (
