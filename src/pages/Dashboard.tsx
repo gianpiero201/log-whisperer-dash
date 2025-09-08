@@ -20,33 +20,29 @@ export default function Dashboard() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Total Logs"
-            value="12,456"
-            subtitle="Last 24 hours"
+            value="—"
+            subtitle="—"
             icon={Database}
-            trend={{ value: 12.5, isPositive: true }}
           />
           <MetricCard
             title="Active Errors"
-            value="23"
-            subtitle="Needs attention"
+            value="—"
+            subtitle="—"
             icon={AlertTriangle}
             variant="error"
-            trend={{ value: -8.2, isPositive: false }}
           />
           <MetricCard
             title="System Health"
-            value="98.5%"
-            subtitle="All systems operational"
+            value="—"
+            subtitle="—"
             icon={Activity}
             variant="success"
-            trend={{ value: 2.1, isPositive: true }}
           />
           <MetricCard
             title="Throughput"
-            value="1.2K/min"
-            subtitle="Logs per minute"
+            value="—"
+            subtitle="—"
             icon={TrendingUp}
-            trend={{ value: 15.3, isPositive: true }}
           />
         </div>
 

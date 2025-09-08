@@ -1,28 +1,9 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Tooltip, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Sample data - in a real app this would come from your log management system
-const timeSeriesData = [
-  { time: '00:00', logs: 150, errors: 2, warnings: 8 },
-  { time: '01:00', logs: 120, errors: 1, warnings: 5 },
-  { time: '02:00', logs: 98, errors: 0, warnings: 3 },
-  { time: '03:00', logs: 87, errors: 1, warnings: 2 },
-  { time: '04:00', logs: 134, errors: 3, warnings: 7 },
-  { time: '05:00', logs: 289, errors: 5, warnings: 12 },
-  { time: '06:00', logs: 456, errors: 8, warnings: 18 },
-  { time: '07:00', logs: 678, errors: 12, warnings: 24 },
-  { time: '08:00', logs: 892, errors: 15, warnings: 32 },
-  { time: '09:00', logs: 1023, errors: 18, warnings: 38 },
-  { time: '10:00', logs: 1156, errors: 12, warnings: 28 },
-  { time: '11:00', logs: 1234, errors: 9, warnings: 22 },
-];
+const timeSeriesData: any[] = [];
 
-const logLevelsData = [
-  { name: 'INFO', value: 68, count: 8456 },
-  { name: 'WARN', value: 18, count: 2234 },
-  { name: 'ERROR', value: 9, count: 1123 },
-  { name: 'DEBUG', value: 5, count: 623 },
-];
+const logLevelsData: any[] = [];
 
 const COLORS = {
   INFO: 'hsl(199, 89%, 48%)',
@@ -31,13 +12,7 @@ const COLORS = {
   DEBUG: 'hsl(262, 83%, 58%)',
 };
 
-const servicesData = [
-  { service: 'API Gateway', logs: 3456, errors: 23, warnings: 67 },
-  { service: 'Auth Service', logs: 2234, errors: 12, warnings: 34 },
-  { service: 'Database', logs: 1890, errors: 8, warnings: 45 },
-  { service: 'Cache', logs: 1456, errors: 5, warnings: 23 },
-  { service: 'Worker', logs: 1234, errors: 15, warnings: 28 },
-];
+const servicesData: any[] = [];
 
 export function DashboardCharts() {
   return (

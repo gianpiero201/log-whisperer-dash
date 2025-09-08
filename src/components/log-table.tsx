@@ -15,73 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-// Sample log data - in a real app this would come from your log management system
-const sampleLogs = [
-  {
-    id: "1",
-    timestamp: "2024-01-15 14:32:15",
-    level: "ERROR",
-    service: "API Gateway",
-    message: "Failed to connect to database: connection timeout",
-    source: "api-gateway-001",
-  },
-  {
-    id: "2", 
-    timestamp: "2024-01-15 14:32:12",
-    level: "INFO",
-    service: "Auth Service",
-    message: "User login successful for user@example.com",
-    source: "auth-service-003",
-  },
-  {
-    id: "3",
-    timestamp: "2024-01-15 14:32:08",
-    level: "WARN",
-    service: "Cache",
-    message: "Cache hit ratio below threshold: 45%",
-    source: "redis-cluster-02",
-  },
-  {
-    id: "4",
-    timestamp: "2024-01-15 14:32:05",
-    level: "DEBUG",
-    service: "Worker",
-    message: "Processing job queue: 45 jobs remaining",
-    source: "worker-node-12",
-  },
-  {
-    id: "5",
-    timestamp: "2024-01-15 14:32:01",
-    level: "INFO",
-    service: "Database",
-    message: "Query executed successfully in 145ms",
-    source: "db-primary-01",
-  },
-  {
-    id: "6",
-    timestamp: "2024-01-15 14:31:58",
-    level: "ERROR",
-    service: "API Gateway",
-    message: "Rate limit exceeded for IP 192.168.1.100",
-    source: "api-gateway-002",
-  },
-  {
-    id: "7",
-    timestamp: "2024-01-15 14:31:55",
-    level: "WARN",
-    service: "Auth Service",
-    message: "Multiple failed login attempts detected",
-    source: "auth-service-001",
-  },
-  {
-    id: "8",
-    timestamp: "2024-01-15 14:31:52",
-    level: "INFO",
-    service: "Cache",
-    message: "Cache invalidation completed for user sessions",
-    source: "redis-cluster-01",
-  },
-];
+const sampleLogs: any[] = [];
 
 const getLevelBadge = (level: string) => {
   const baseClasses = "font-mono text-xs";
