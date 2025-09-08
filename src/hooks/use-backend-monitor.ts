@@ -229,12 +229,11 @@ export function useBackendMonitor() {
     [clearTimer, notifyWebhook, probe]
   );
 
-  // Reschedule polling whenever endpoints list changes (id, enabled, interval, url, method)
+  // Keep data fresh: refresh list periodically; server-side function does checks
   useEffect(() => {
-    clearAllTimers();
-    endpoints.forEach((ep) => schedule(ep));
-    return () => clearAllTimers();
-  }, [endpoints, schedule, clearAllTimers]);
+    const interval = setInterval(fetchEndpoints, 15000);
+    return () => clearInterval(interval);
+  }, [fetchEndpoints]);
 
   const addEndpoint = useCallback(
     async (input: { url: string; method?: "GET" | "HEAD"; intervalSec?: number; webhookUrl?: string }) => {
@@ -315,37 +314,15 @@ export function useBackendMonitor() {
   );
 
   const checkNow = useCallback(async (id: string) => {
-    const ep = endpoints.find((x) => x.id === id);
-    if (!ep) return;
-    const result = await probe(ep);
-    
-    // Update database
-    await supabase
-      .from('endpoints')
-      .update({
-        last_status: result.status,
-        last_status_code: result.statusCode,
-        last_latency_ms: result.latency,
-        last_checked_at: new Date().toISOString(),
-        error: result.error
-      })
-      .eq('id', id);
-
-    setEndpoints((prev) =>
-      prev.map((x) =>
-        x.id === id
-          ? {
-              ...x,
-              lastStatus: result.status,
-              lastStatusCode: result.statusCode,
-              lastLatencyMs: result.latency,
-              lastCheckedAt: Date.now(),
-              error: result.error,
-            }
-          : x
-      )
-    );
-  }, [endpoints, probe]);
+    try {
+      await supabase.functions.invoke('monitor-endpoints', {
+        body: { id }
+      });
+      await fetchEndpoints();
+    } catch (err) {
+      console.error('Error invoking monitor function:', err);
+    }
+  }, [fetchEndpoints]);
 
   const value = useMemo(
     () => ({ endpoints, loading, addEndpoint, removeEndpoint, updateEndpoint, checkNow, refetch: fetchEndpoints }),
