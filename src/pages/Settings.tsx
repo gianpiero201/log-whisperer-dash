@@ -9,14 +9,100 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { BackendMonitor } from "@/components/backend-monitor";
+import { useUserSettings } from "@/hooks/use-user-settings";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState("30");
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { settings, loading, saving, updateSetting, saveSettings, resetToDefaults } = useUserSettings();
+  
+  // Notification settings (stored locally since not in DB schema)
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [slackNotifications, setSlackNotifications] = useState(false);
-  const [logRetention, setLogRetention] = useState("30");
-  const [maxLogSize, setMaxLogSize] = useState("100");
+  const [emailAddress, setEmailAddress] = useState("");
+  const [slackWebhook, setSlackWebhook] = useState("");
+
+  const handleSaveSettings = () => {
+    saveSettings();
+  };
+
+  const handleResetDefaults = () => {
+    resetToDefaults();
+    setEmailNotifications(true);
+    setSlackNotifications(false);
+    setEmailAddress("");
+    setSlackWebhook("");
+  };
+
+  const handleExportData = async () => {
+    if (!user) return;
+    
+    try {
+      const { data: logs, error } = await supabase
+        .from('logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('timestamp', { ascending: false });
+
+      if (error) throw error;
+
+      const dataStr = JSON.stringify(logs, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `logs_export_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Success',
+        description: 'Data exported successfully',
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to export data',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleClearAllLogs = async () => {
+    if (!user) return;
+    
+    if (!confirm('Are you sure you want to delete all logs? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('logs')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'All logs cleared successfully',
+      });
+    } catch (error) {
+      console.error('Clear logs error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to clear logs',
+        variant: 'destructive',
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -48,14 +134,17 @@ export default function Settings() {
                 </div>
                 <Switch
                   id="auto-refresh"
-                  checked={autoRefresh}
-                  onCheckedChange={setAutoRefresh}
+                  checked={settings.autoRefresh}
+                  onCheckedChange={(checked) => updateSetting('autoRefresh', checked)}
                 />
               </div>
 
               <div>
                 <Label htmlFor="refresh-interval">Refresh Interval (seconds)</Label>
-                <Select value={refreshInterval} onValueChange={setRefreshInterval}>
+                <Select 
+                  value={settings.refreshInterval.toString()} 
+                  onValueChange={(value) => updateSetting('refreshInterval', parseInt(value))}
+                >
                   <SelectTrigger id="refresh-interval">
                     <SelectValue />
                   </SelectTrigger>
@@ -72,7 +161,10 @@ export default function Settings() {
 
               <div>
                 <Label htmlFor="theme">Theme</Label>
-                <Select defaultValue="system">
+                <Select 
+                  value={settings.theme} 
+                  onValueChange={(value) => updateSetting('theme', value)}
+                >
                   <SelectTrigger id="theme">
                     <SelectValue />
                   </SelectTrigger>
@@ -86,15 +178,18 @@ export default function Settings() {
 
               <div>
                 <Label htmlFor="timezone">Timezone</Label>
-                <Select defaultValue="utc">
+                <Select 
+                  value={settings.timezone} 
+                  onValueChange={(value) => updateSetting('timezone', value)}
+                >
                   <SelectTrigger id="timezone">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="utc">UTC</SelectItem>
-                    <SelectItem value="america/sao_paulo">America/São_Paulo</SelectItem>
-                    <SelectItem value="america/new_york">America/New_York</SelectItem>
-                    <SelectItem value="europe/london">Europe/London</SelectItem>
+                    <SelectItem value="UTC">UTC</SelectItem>
+                    <SelectItem value="America/Sao_Paulo">America/São_Paulo</SelectItem>
+                    <SelectItem value="America/New_York">America/New_York</SelectItem>
+                    <SelectItem value="Europe/London">Europe/London</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -144,6 +239,8 @@ export default function Settings() {
                   <Input
                     id="email-address"
                     type="email"
+                    value={emailAddress}
+                    onChange={(e) => setEmailAddress(e.target.value)}
                     placeholder="your-email@company.com"
                   />
                 </div>
@@ -155,6 +252,8 @@ export default function Settings() {
                   <Input
                     id="slack-webhook"
                     type="url"
+                    value={slackWebhook}
+                    onChange={(e) => setSlackWebhook(e.target.value)}
                     placeholder="https://hooks.slack.com/services/..."
                   />
                 </div>
@@ -173,7 +272,10 @@ export default function Settings() {
             <CardContent className="space-y-6">
               <div>
                 <Label htmlFor="log-retention">Log Retention (days)</Label>
-                <Select value={logRetention} onValueChange={setLogRetention}>
+                <Select 
+                  value={settings.logRetentionDays.toString()} 
+                  onValueChange={(value) => updateSetting('logRetentionDays', parseInt(value))}
+                >
                   <SelectTrigger id="log-retention">
                     <SelectValue />
                   </SelectTrigger>
@@ -188,7 +290,10 @@ export default function Settings() {
 
               <div>
                 <Label htmlFor="max-log-size">Max Log Size (MB)</Label>
-                <Select value={maxLogSize} onValueChange={setMaxLogSize}>
+                <Select 
+                  value={settings.maxLogSizeMb.toString()} 
+                  onValueChange={(value) => updateSetting('maxLogSizeMb', parseInt(value))}
+                >
                   <SelectTrigger id="max-log-size">
                     <SelectValue />
                   </SelectTrigger>
@@ -206,11 +311,11 @@ export default function Settings() {
               <div className="space-y-3">
                 <h4 className="font-medium">Data Export/Import</h4>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={handleExportData}>
                     <Download className="h-4 w-4 mr-2" />
                     Export Data
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" disabled>
                     <Upload className="h-4 w-4 mr-2" />
                     Import Data
                   </Button>
@@ -219,7 +324,7 @@ export default function Settings() {
 
               <div className="space-y-3">
                 <h4 className="font-medium">Danger Zone</h4>
-                <Button variant="destructive" size="sm">
+                <Button variant="destructive" size="sm" onClick={handleClearAllLogs}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Clear All Logs
                 </Button>
@@ -276,8 +381,19 @@ export default function Settings() {
 
         {/* Save Settings */}
         <div className="flex justify-end gap-2">
-          <Button variant="outline">Reset to Defaults</Button>
-          <Button>Save Settings</Button>
+          <Button 
+            variant="outline" 
+            onClick={handleResetDefaults}
+            disabled={loading || saving}
+          >
+            Reset to Defaults
+          </Button>
+          <Button 
+            onClick={handleSaveSettings}
+            disabled={loading || saving}
+          >
+            {saving ? 'Saving...' : 'Save Settings'}
+          </Button>
         </div>
       </div>
     </div>
