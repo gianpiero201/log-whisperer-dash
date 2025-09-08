@@ -14,7 +14,319 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      alert_events: {
+        Row: {
+          endpoint_id: string | null
+          id: string
+          message: string | null
+          occurred_at: string
+          payload: Json | null
+          resolved_at: string | null
+          rule_id: string
+          status: Database["public"]["Enums"]["alert_status"]
+        }
+        Insert: {
+          endpoint_id?: string | null
+          id?: string
+          message?: string | null
+          occurred_at?: string
+          payload?: Json | null
+          resolved_at?: string | null
+          rule_id: string
+          status?: Database["public"]["Enums"]["alert_status"]
+        }
+        Update: {
+          endpoint_id?: string | null
+          id?: string
+          message?: string | null
+          occurred_at?: string
+          payload?: Json | null
+          resolved_at?: string | null
+          rule_id?: string
+          status?: Database["public"]["Enums"]["alert_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_events_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "endpoints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_events_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "alert_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_rules: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          name: string
+          query: string | null
+          severity: Database["public"]["Enums"]["alert_severity"]
+          throttle_seconds: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name: string
+          query?: string | null
+          severity?: Database["public"]["Enums"]["alert_severity"]
+          throttle_seconds?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          query?: string | null
+          severity?: Database["public"]["Enums"]["alert_severity"]
+          throttle_seconds?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      endpoints: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          error: string | null
+          id: string
+          interval_sec: number
+          last_checked_at: string | null
+          last_latency_ms: number | null
+          last_status: Database["public"]["Enums"]["endpoint_status"]
+          last_status_code: number | null
+          method: string
+          updated_at: string
+          url: string
+          user_id: string
+          webhook_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          error?: string | null
+          id?: string
+          interval_sec?: number
+          last_checked_at?: string | null
+          last_latency_ms?: number | null
+          last_status?: Database["public"]["Enums"]["endpoint_status"]
+          last_status_code?: number | null
+          method?: string
+          updated_at?: string
+          url: string
+          user_id: string
+          webhook_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          error?: string | null
+          id?: string
+          interval_sec?: number
+          last_checked_at?: string | null
+          last_latency_ms?: number | null
+          last_status?: Database["public"]["Enums"]["endpoint_status"]
+          last_status_code?: number | null
+          method?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+          webhook_url?: string | null
+        }
+        Relationships: []
+      }
+      logs: {
+        Row: {
+          endpoint_id: string | null
+          id: number
+          level: Database["public"]["Enums"]["log_level"]
+          message: string | null
+          meta: Json
+          service: string | null
+          source: string | null
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          endpoint_id?: string | null
+          id?: number
+          level: Database["public"]["Enums"]["log_level"]
+          message?: string | null
+          meta?: Json
+          service?: string | null
+          source?: string | null
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          endpoint_id?: string | null
+          id?: number
+          level?: Database["public"]["Enums"]["log_level"]
+          message?: string | null
+          meta?: Json
+          service?: string | null
+          source?: string | null
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logs_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "endpoints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      saved_queries: {
+        Row: {
+          created_at: string
+          filters: Json
+          id: string
+          name: string
+          query: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          filters?: Json
+          id?: string
+          name: string
+          query: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          filters?: Json
+          id?: string
+          name?: string
+          query?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          auto_refresh: boolean
+          created_at: string
+          log_retention_days: number
+          max_log_size_mb: number
+          refresh_interval: number
+          theme: string
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_refresh?: boolean
+          created_at?: string
+          log_retention_days?: number
+          max_log_size_mb?: number
+          refresh_interval?: number
+          theme?: string
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_refresh?: boolean
+          created_at?: string
+          log_retention_days?: number
+          max_log_size_mb?: number
+          refresh_interval?: number
+          theme?: string
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      webhook_deliveries: {
+        Row: {
+          endpoint_id: string
+          error: string | null
+          id: string
+          payload: Json | null
+          response_ms: number | null
+          sent_at: string
+          status_code: number | null
+          success: boolean | null
+          target_url: string
+        }
+        Insert: {
+          endpoint_id: string
+          error?: string | null
+          id?: string
+          payload?: Json | null
+          response_ms?: number | null
+          sent_at?: string
+          status_code?: number | null
+          success?: boolean | null
+          target_url: string
+        }
+        Update: {
+          endpoint_id?: string
+          error?: string | null
+          id?: string
+          payload?: Json | null
+          response_ms?: number | null
+          sent_at?: string
+          status_code?: number | null
+          success?: boolean | null
+          target_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_deliveries_endpoint_id_fkey"
+            columns: ["endpoint_id"]
+            isOneToOne: false
+            referencedRelation: "endpoints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +335,10 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      alert_severity: "info" | "warning" | "critical"
+      alert_status: "active" | "resolved"
+      endpoint_status: "up" | "down" | "unknown"
+      log_level: "DEBUG" | "INFO" | "WARN" | "ERROR"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +465,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      alert_severity: ["info", "warning", "critical"],
+      alert_status: ["active", "resolved"],
+      endpoint_status: ["up", "down", "unknown"],
+      log_level: ["DEBUG", "INFO", "WARN", "ERROR"],
+    },
   },
 } as const
