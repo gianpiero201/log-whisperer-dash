@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export type BackendEndpoint = {
   id: string;
@@ -15,38 +17,48 @@ export type BackendEndpoint = {
   error?: string;
 };
 
-const STORAGE_KEY = "backend_monitor_endpoints_v1";
-
-function loadFromStorage(): BackendEndpoint[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: BackendEndpoint[] = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveToStorage(endpoints: BackendEndpoint[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(endpoints));
-  } catch {
-    // ignore
-  }
-}
-
-function uuid() {
-  return crypto.randomUUID?.() || Math.random().toString(36).slice(2);
-}
-
 export function useBackendMonitor() {
-  const [endpoints, setEndpoints] = useState<BackendEndpoint[]>(() => loadFromStorage());
+  const [endpoints, setEndpoints] = useState<BackendEndpoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
-  // Persist
+  // Fetch endpoints from Supabase
+  const fetchEndpoints = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('endpoints')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const mappedEndpoints: BackendEndpoint[] = (data || []).map(endpoint => ({
+        id: endpoint.id,
+        url: endpoint.url,
+        method: endpoint.method as "GET" | "HEAD",
+        intervalSec: endpoint.interval_sec,
+        webhookUrl: endpoint.webhook_url || undefined,
+        enabled: endpoint.enabled,
+        lastStatus: endpoint.last_status as "up" | "down" | "unknown",
+        lastStatusCode: endpoint.last_status_code || undefined,
+        lastLatencyMs: endpoint.last_latency_ms || undefined,
+        lastCheckedAt: endpoint.last_checked_at ? new Date(endpoint.last_checked_at).getTime() : undefined,
+        error: endpoint.error || undefined,
+      }));
+
+      setEndpoints(mappedEndpoints);
+    } catch (err) {
+      console.error('Error fetching endpoints:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    saveToStorage(endpoints);
-  }, [endpoints]);
+    fetchEndpoints();
+  }, [user]);
 
   // Map of timers by id
   const timersRef = useRef<Map<string, number>>(new Map());
@@ -141,6 +153,19 @@ export function useBackendMonitor() {
       // Run immediately, then set interval
       (async () => {
         const result = await probe(ep);
+        
+        // Update database
+        await supabase
+          .from('endpoints')
+          .update({
+            last_status: result.status,
+            last_status_code: result.statusCode,
+            last_latency_ms: result.latency,
+            last_checked_at: new Date().toISOString(),
+            error: result.error
+          })
+          .eq('id', ep.id);
+
         setEndpoints((prev) => {
           const cur = prev.find((x) => x.id === ep.id);
           if (!cur) return prev;
@@ -165,6 +190,19 @@ export function useBackendMonitor() {
 
       const id = window.setInterval(async () => {
         const result = await probe(ep);
+        
+        // Update database
+        await supabase
+          .from('endpoints')
+          .update({
+            last_status: result.status,
+            last_status_code: result.statusCode,
+            last_latency_ms: result.latency,
+            last_checked_at: new Date().toISOString(),
+            error: result.error
+          })
+          .eq('id', ep.id);
+
         setEndpoints((prev) => {
           const cur = prev.find((x) => x.id === ep.id);
           if (!cur) return prev;
@@ -199,33 +237,79 @@ export function useBackendMonitor() {
   }, [endpoints, schedule, clearAllTimers]);
 
   const addEndpoint = useCallback(
-    (input: { url: string; method?: "GET" | "HEAD"; intervalSec?: number; webhookUrl?: string }) => {
+    async (input: { url: string; method?: "GET" | "HEAD"; intervalSec?: number; webhookUrl?: string }) => {
+      if (!user) return;
+
       const method = input.method ?? "GET";
       const intervalSec = Math.max(5, Math.round(input.intervalSec ?? 60));
-      const id = uuid();
-      const ep: BackendEndpoint = {
-        id,
-        url: input.url,
-        method,
-        intervalSec,
-        webhookUrl: input.webhookUrl?.trim() ? input.webhookUrl.trim() : undefined,
-        enabled: true,
-        lastStatus: "unknown",
-      };
-      setEndpoints((prev) => [...prev, ep]);
-      return id;
+      
+      try {
+        const { data, error } = await supabase
+          .from('endpoints')
+          .insert({
+            url: input.url,
+            method,
+            interval_sec: intervalSec,
+            webhook_url: input.webhookUrl?.trim() || null,
+            user_id: user.id,
+            enabled: true,
+            last_status: 'unknown'
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        fetchEndpoints(); // Refresh the list
+        return data.id;
+      } catch (err) {
+        console.error('Error adding endpoint:', err);
+        throw err;
+      }
     },
-    []
+    [user]
   );
 
-  const removeEndpoint = useCallback((id: string) => {
+  const removeEndpoint = useCallback(async (id: string) => {
     clearTimer(id);
-    setEndpoints((prev) => prev.filter((x) => x.id !== id));
+    
+    try {
+      const { error } = await supabase
+        .from('endpoints')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      setEndpoints((prev) => prev.filter((x) => x.id !== id));
+    } catch (err) {
+      console.error('Error removing endpoint:', err);
+      throw err;
+    }
   }, [clearTimer]);
 
   const updateEndpoint = useCallback(
-    (id: string, patch: Partial<Pick<BackendEndpoint, "url" | "method" | "intervalSec" | "webhookUrl" | "enabled">>) => {
-      setEndpoints((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    async (id: string, patch: Partial<Pick<BackendEndpoint, "url" | "method" | "intervalSec" | "webhookUrl" | "enabled">>) => {
+      try {
+        const dbPatch: any = {};
+        if (patch.url !== undefined) dbPatch.url = patch.url;
+        if (patch.method !== undefined) dbPatch.method = patch.method;
+        if (patch.intervalSec !== undefined) dbPatch.interval_sec = patch.intervalSec;
+        if (patch.webhookUrl !== undefined) dbPatch.webhook_url = patch.webhookUrl;
+        if (patch.enabled !== undefined) dbPatch.enabled = patch.enabled;
+
+        const { error } = await supabase
+          .from('endpoints')
+          .update(dbPatch)
+          .eq('id', id);
+
+        if (error) throw error;
+
+        setEndpoints((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+      } catch (err) {
+        console.error('Error updating endpoint:', err);
+        throw err;
+      }
     },
     []
   );
@@ -234,6 +318,19 @@ export function useBackendMonitor() {
     const ep = endpoints.find((x) => x.id === id);
     if (!ep) return;
     const result = await probe(ep);
+    
+    // Update database
+    await supabase
+      .from('endpoints')
+      .update({
+        last_status: result.status,
+        last_status_code: result.statusCode,
+        last_latency_ms: result.latency,
+        last_checked_at: new Date().toISOString(),
+        error: result.error
+      })
+      .eq('id', id);
+
     setEndpoints((prev) =>
       prev.map((x) =>
         x.id === id
@@ -251,8 +348,8 @@ export function useBackendMonitor() {
   }, [endpoints, probe]);
 
   const value = useMemo(
-    () => ({ endpoints, addEndpoint, removeEndpoint, updateEndpoint, checkNow }),
-    [endpoints, addEndpoint, removeEndpoint, updateEndpoint, checkNow]
+    () => ({ endpoints, loading, addEndpoint, removeEndpoint, updateEndpoint, checkNow, refetch: fetchEndpoints }),
+    [endpoints, loading, addEndpoint, removeEndpoint, updateEndpoint, checkNow, fetchEndpoints]
   );
 
   return value;

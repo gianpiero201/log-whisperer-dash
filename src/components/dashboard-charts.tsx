@@ -1,9 +1,7 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Tooltip, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const timeSeriesData: any[] = [];
-
-const logLevelsData: any[] = [];
+import { useLogs } from "@/hooks/use-logs";
+import { useMemo } from "react";
 
 const COLORS = {
   INFO: 'hsl(199, 89%, 48%)',
@@ -12,9 +10,71 @@ const COLORS = {
   DEBUG: 'hsl(262, 83%, 58%)',
 };
 
-const servicesData: any[] = [];
-
 export function DashboardCharts() {
+  const { logs } = useLogs();
+
+  // Process logs data for charts
+  const chartData = useMemo(() => {
+    const now = new Date();
+    const last24Hours = Array.from({ length: 24 }, (_, i) => {
+      const hour = new Date(now);
+      hour.setHours(hour.getHours() - (23 - i));
+      return {
+        time: hour.getHours().toString().padStart(2, '0') + ':00',
+        timestamp: hour.getTime()
+      };
+    });
+
+    // Count logs per hour for the last 24 hours
+    const timeSeriesData = last24Hours.map(({ time, timestamp }) => {
+      const hourStart = timestamp;
+      const hourEnd = timestamp + (60 * 60 * 1000); // 1 hour in ms
+      
+      const hourLogs = logs.filter(log => {
+        const logTime = new Date(log.timestamp).getTime();
+        return logTime >= hourStart && logTime < hourEnd;
+      });
+
+      const errorLogs = hourLogs.filter(log => log.level === 'ERROR');
+
+      return {
+        time,
+        logs: hourLogs.length,
+        errors: errorLogs.length
+      };
+    });
+
+    // Count logs by level
+    const levelCounts = logs.reduce((acc, log) => {
+      acc[log.level] = (acc[log.level] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const logLevelsData = Object.entries(levelCounts).map(([level, count]) => ({
+      name: level,
+      value: logs.length > 0 ? parseFloat(((count / logs.length) * 100).toFixed(1)) : 0,
+      count
+    }));
+
+    // Count logs by service
+    const serviceCounts = logs.reduce((acc, log) => {
+      const service = log.service || 'Unknown';
+      acc[service] = (acc[service] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const servicesData = Object.entries(serviceCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10) // Top 10 services
+      .map(([service, count]) => ({
+        service: service.length > 12 ? service.slice(0, 12) + '...' : service,
+        logs: count
+      }));
+
+    return { timeSeriesData, logLevelsData, servicesData };
+  }, [logs]);
+
+  const { timeSeriesData, logLevelsData, servicesData } = chartData;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Log Volume Over Time */}

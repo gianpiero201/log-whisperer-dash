@@ -14,8 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-const sampleLogs: any[] = [];
+import { useLogs } from "@/hooks/use-logs";
 
 const getLevelBadge = (level: string) => {
   const baseClasses = "font-mono text-xs";
@@ -34,22 +33,23 @@ const getLevelBadge = (level: string) => {
 };
 
 export function LogTable() {
+  const { logs, loading, refetch } = useLogs();
   const [searchTerm, setSearchTerm] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
 
-  const filteredLogs = sampleLogs.filter((log) => {
-    const matchesSearch = log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         log.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         log.source.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredLogs = logs.filter((log) => {
+    const matchesSearch = (log.message || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (log.service || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (log.source || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesLevel = levelFilter === "all" || log.level === levelFilter;
     const matchesService = serviceFilter === "all" || log.service === serviceFilter;
     
     return matchesSearch && matchesLevel && matchesService;
   });
 
-  const services = [...new Set(sampleLogs.map(log => log.service))];
-  const levels = [...new Set(sampleLogs.map(log => log.level))];
+  const services = [...new Set(logs.map(log => log.service).filter(Boolean))];
+  const levels = [...new Set(logs.map(log => log.level))];
 
   return (
     <Card className="bg-gradient-card border-border/50 shadow-card">
@@ -57,8 +57,8 @@ export function LogTable() {
         <div className="flex items-center justify-between">
           <CardTitle>Recent Logs</CardTitle>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-1" />
+            <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
+              <RefreshCw className={cn("h-4 w-4 mr-1", loading && "animate-spin")} />
               Refresh
             </Button>
             <Button variant="outline" size="sm">
@@ -123,8 +123,8 @@ export function LogTable() {
                   key={log.id} 
                   className="border-border/50 hover:bg-secondary/30 cursor-pointer"
                 >
-                  <TableCell className="font-mono text-sm text-muted-foreground">
-                    {log.timestamp}
+                 <TableCell className="font-mono text-sm text-muted-foreground">
+                    {new Date(log.timestamp).toLocaleString()}
                   </TableCell>
                   <TableCell>
                     {getLevelBadge(log.level)}
@@ -146,7 +146,7 @@ export function LogTable() {
         
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-muted-foreground">
-            Showing {filteredLogs.length} of {sampleLogs.length} logs
+            Showing {filteredLogs.length} of {logs.length} logs {loading && "(loading...)"}
           </p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled>
