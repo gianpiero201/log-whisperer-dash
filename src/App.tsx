@@ -4,9 +4,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { LogSidebar } from "@/components/log-sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/UserMenu";
 import Dashboard from "./pages/Dashboard";
 import Logs from "./pages/Logs";
@@ -22,7 +24,8 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
+      <ThemeProvider>
+        <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
@@ -42,13 +45,14 @@ const App = () => (
                             <p className="text-xs text-muted-foreground">Real-time monitoring and analysis</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-success rounded-full"></div>
-                            <span className="text-sm text-muted-foreground">Connected</span>
-                          </div>
-                          <UserMenu />
-                        </div>
+                         <div className="flex items-center gap-4">
+                           <div className="flex items-center gap-2">
+                             <div className="w-2 h-2 bg-success rounded-full"></div>
+                             <span className="text-sm text-muted-foreground">Connected</span>
+                           </div>
+                           <ThemeToggle />
+                           <UserMenu />
+                         </div>
                       </header>
                       <main className="flex-1">
                         <Routes>
@@ -68,7 +72,8 @@ const App = () => (
             } />
           </Routes>
         </BrowserRouter>
-      </TooltipProvider>
+        </TooltipProvider>
+      </ThemeProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

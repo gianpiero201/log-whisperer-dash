@@ -159,22 +159,25 @@ export default function Settings() {
 
               <Separator />
 
-              <div>
-                <Label htmlFor="theme">Theme</Label>
-                <Select 
-                  value={settings.theme} 
-                  onValueChange={(value) => updateSetting('theme', value)}
-                >
-                  <SelectTrigger id="theme">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+               <div>
+                 <Label htmlFor="theme">Theme</Label>
+                 <Select 
+                   value={settings.theme} 
+                   onValueChange={(value) => {
+                     updateSetting('theme', value);
+                     saveSettings({ theme: value });
+                   }}
+                 >
+                   <SelectTrigger id="theme">
+                     <SelectValue />
+                   </SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="light">Light</SelectItem>
+                     <SelectItem value="dark">Dark</SelectItem>
+                     <SelectItem value="system">System</SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
 
               <div>
                 <Label htmlFor="timezone">Timezone</Label>
