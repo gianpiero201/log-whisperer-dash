@@ -83,7 +83,7 @@ class ApiClient {
         localStorage.removeItem(AUTH_CONFIG.USER_KEY);
 
         // Redirect to login page
-        window.location.href = '/login';
+        window.location.href = '/auth';
         toast.error('Session expired. Please login again.');
     }
 

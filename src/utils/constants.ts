@@ -130,9 +130,9 @@ export const TOAST_MESSAGES = {
 
 export const ROUTES = {
     HOME: '/',
-    LOGIN: '/login',
-    REGISTER: '/register',
-    DASHBOARD: '/dashboard',
+    LOGIN: '/auth',
+    REGISTER: '/auth',
+    DASHBOARD: '/',
     LOGS: '/logs',
     ENDPOINTS: '/endpoints',
     ALERTS: '/alerts',

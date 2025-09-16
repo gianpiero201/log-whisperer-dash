@@ -9,7 +9,6 @@ import { useAuth } from './store/authStore';
 
 // Components
 import { ProtectedRoute } from './components/ProtectedRoute';
-import Alerts from './pages/Alerts';
 import Dashboard from './pages/Dashboard';
 import Logs from './pages/Logs';
 import Settings from './pages/Settings';
@@ -19,6 +18,7 @@ import './App.css';
 import LoadingSpinner from './components/ui/loading-spinner';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './index.css';
+import { Alerts } from './pages/Alerts';
 import Analytics from './pages/Analytics';
 import Auth from './pages/Auth';
 import NotFound from './pages/NotFound';
