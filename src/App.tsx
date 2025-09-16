@@ -16,6 +16,7 @@ import Settings from './pages/Settings';
 
 // Styles
 import './App.css';
+import LoadingSpinner from './components/ui/loading-spinner';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './index.css';
 import Analytics from './pages/Analytics';
@@ -38,7 +39,7 @@ function AppContent() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        {/* <LoadingSpinner /> */}
+        <LoadingSpinner />
       </div>
     );
   }

@@ -42,6 +42,7 @@ import {
 } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import LoadingSpinner from './ui/loading-spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Switch } from './ui/switch';
 
@@ -156,7 +157,7 @@ export function AlertsManagement() {
     if (loadingRules || loadingStats) {
         return (
             <div className="flex items-center justify-center p-8">
-                {/* <LoadingSpinner /> */}
+                <LoadingSpinner />
             </div>
         );
     }
@@ -267,7 +268,7 @@ export function AlertsManagement() {
                                         onClick={() => handleResolveEvent(event.id)}
                                         disabled={resolveEvent.isPending}
                                     >
-                                        {resolveEvent.isPending ? 'loading...' /*<LoadingSpinner className="h-3 w-3" />*/ : 'Resolve'}
+                                        {resolveEvent.isPending ? <LoadingSpinner className="h-3 w-3" /> : 'Resolve'}
                                     </Button>
                                 </div>
                             ))}
@@ -405,14 +406,14 @@ export function AlertsManagement() {
                                             onClick={handleTestRule}
                                             disabled={testRule.isPending || !formData.name || !formData.query}
                                         >
-                                            {testRule.isPending ? 'loading...' /*<LoadingSpinner className="h-3 w-3 mr-2" />*/ : <TestTube className="h-4 w-4 mr-2" />}
+                                            {testRule.isPending ? <LoadingSpinner className="h-3 w-3 mr-2" /> : <TestTube className="h-4 w-4 mr-2" />}
                                             Test
                                         </Button>
                                         <Button
                                             onClick={handleCreateRule}
                                             disabled={createRule.isPending || !formData.name || !formData.query}
                                         >
-                                            {createRule.isPending ? 'loading...' /*<LoadingSpinner className="h-3 w-3 mr-2" />*/ : null}
+                                            {createRule.isPending ? <LoadingSpinner className="h-3 w-3 mr-2" /> : null}
                                             Create Rule
                                         </Button>
                                     </DialogFooter>

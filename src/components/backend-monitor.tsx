@@ -1,205 +1,487 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { toast } from "@/components/ui/use-toast";
-import { RefreshCw, Trash2, Link as LinkIcon, PlugZap } from "lucide-react";
-import { useBackendMonitor } from "@/hooks/use-backend-monitor";
+import { format } from 'date-fns';
+import {
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Globe,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  TestTube,
+  Trash2,
+  Zap
+} from 'lucide-react';
+import { useState } from 'react';
+import {
+  useBulkEndpointOperations,
+  useCreateEndpoint,
+  useDeleteEndpoint,
+  useEndpoints,
+  useEndpointsStatistics,
+  useRealTimeEndpointStatus,
+  useTestEndpoint,
+  useToggleEndpoint,
+  useUpdateEndpoint
+} from '../hooks/use-endpoints';
+import { CreateEndpointRequest, EndpointStatus } from '../types/api';
+import { ENDPOINT_STATUS, HTTP_METHODS } from '../utils/constants';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { LoadingSpinner } from './ui/loading-spinner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
+import { Switch } from './ui/switch';
 
 export function BackendMonitor() {
-  const { endpoints, addEndpoint, removeEndpoint, updateEndpoint, checkNow } = useBackendMonitor();
+  const [selectedEndpoints, setSelectedEndpoints] = useState<string[]>([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-  const [url, setUrl] = useState("");
-  const [method, setMethod] = useState<"GET" | "HEAD">("GET");
-  const [intervalSec, setIntervalSec] = useState<number>(60);
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const [isAdding, setIsAdding] = useState(false);
+  // Data hooks
+  const { data: endpoints = [], isPending: loadingEndpoints, refetch: refetchEndpoints } = useEndpoints();
+  const { data: statistics, isPending: loadingStats } = useEndpointsStatistics();
+  const { data: realtimeStatus = [] } = useRealTimeEndpointStatus();
 
-  function isValidUrl(value: string) {
+  // Mutation hooks
+  const createEndpoint = useCreateEndpoint();
+  const updateEndpoint = useUpdateEndpoint();
+  const deleteEndpoint = useDeleteEndpoint();
+  const toggleEndpoint = useToggleEndpoint();
+  const testEndpoint = useTestEndpoint();
+  const { deleteMultiple, toggleMultiple, testMultiple } = useBulkEndpointOperations();
+
+  // Form state
+  const [formData, setFormData] = useState<CreateEndpointRequest>({
+    url: '',
+    method: 'GET',
+    intervalSec: 60,
+    webhookUrl: '',
+    enabled: true
+  });
+
+  const handleCreateEndpoint = async () => {
     try {
-      const u = new URL(value);
-      return Boolean(u.protocol && u.host);
-    } catch {
-      return false;
-    }
-  }
-
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isValidUrl(url)) {
-      toast({
-        title: "URL inválida",
-        description: "Verifique o formato. Ex: https://api.exemplo.com/health",
-        variant: "destructive",
+      await createEndpoint.mutateAsync(formData);
+      setIsCreateDialogOpen(false);
+      setFormData({
+        url: '',
+        method: 'GET',
+        intervalSec: 60,
+        webhookUrl: '',
+        enabled: true
       });
-      return;
-    }
-    if (webhookUrl && !isValidUrl(webhookUrl)) {
-      toast({ title: "Webhook inválido", description: "Informe um URL válido ou deixe vazio.", variant: "destructive" });
-      return;
-    }
-
-    setIsAdding(true);
-    try {
-      addEndpoint({ url: url.trim(), method, intervalSec: Number(intervalSec) || 60, webhookUrl: webhookUrl.trim() });
-      setUrl("");
-      setWebhookUrl("");
-      setIntervalSec(60);
-      setMethod("GET");
-      toast({ title: "Endpoint adicionado", description: "Monitoramento iniciado." });
-    } finally {
-      setIsAdding(false);
+    } catch (error) {
+      console.error('Error creating endpoint:', error);
     }
   };
 
-  const fmtMs = (ms?: number) => (typeof ms === "number" ? `${ms} ms` : "—");
-  const fmtDate = (ts?: number) => (ts ? new Date(ts).toLocaleString() : "—");
+  const handleToggleEndpoint = async (id: string, enabled: boolean) => {
+    try {
+      await toggleEndpoint.mutateAsync({ id, enabled });
+    } catch (error) {
+      console.error('Error toggling endpoint:', error);
+    }
+  };
+
+  const handleDeleteEndpoint = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this endpoint?')) {
+      try {
+        await deleteEndpoint.mutateAsync(id);
+      } catch (error) {
+        console.error('Error deleting endpoint:', error);
+      }
+    }
+  };
+
+  const handleTestEndpoint = async (id: string) => {
+    try {
+      await testEndpoint.mutateAsync(id);
+    } catch (error) {
+      console.error('Error testing endpoint:', error);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedEndpoints.length === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete ${selectedEndpoints.length} endpoints?`)) {
+      try {
+        await deleteMultiple.mutateAsync(selectedEndpoints);
+        setSelectedEndpoints([]);
+      } catch (error) {
+        console.error('Error deleting endpoints:', error);
+      }
+    }
+  };
+
+  const handleBulkToggle = async (enabled: boolean) => {
+    if (selectedEndpoints.length === 0) return;
+
+    try {
+      await toggleMultiple.mutateAsync({ endpointIds: selectedEndpoints, enabled });
+      setSelectedEndpoints([]);
+    } catch (error) {
+      console.error('Error toggling endpoints:', error);
+    }
+  };
+
+  const handleBulkTest = async () => {
+    if (selectedEndpoints.length === 0) return;
+
+    try {
+      await testMultiple.mutateAsync(selectedEndpoints);
+    } catch (error) {
+      console.error('Error testing endpoints:', error);
+    }
+  };
+
+  const getStatusBadge = (status: EndpointStatus) => {
+    const config = ENDPOINT_STATUS[status];
+    const IconComponent = {
+      up: CheckCircle,
+      down: AlertCircle,
+      unknown: Clock
+    }[status];
+
+    return (
+      <Badge
+        variant={status === 'up' ? 'default' : status === 'down' ? 'destructive' : 'secondary'}
+        className="flex items-center gap-1"
+      >
+        <IconComponent className="h-3 w-3" />
+        {config.label}
+      </Badge>
+    );
+  };
+
+  if (loadingEndpoints || loadingStats) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
-    <section aria-labelledby="backend-monitor-title" className="space-y-4">
-      <header>
-        <h2 id="backend-monitor-title" className="text-2xl font-semibold tracking-tight">Monitoramento de Backends</h2>
-        <p className="text-sm text-muted-foreground">Cadastre URLs para checagem periódica e notifique via webhook em mudanças de status.</p>
-      </header>
+    <div className="space-y-6">
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Endpoints</CardTitle>
+            <Globe className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{statistics?.total || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              {statistics?.active || 0} enabled
+            </p>
+          </CardContent>
+        </Card>
 
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Online</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {statistics?.up || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Healthy endpoints
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Offline</CardTitle>
+            <AlertCircle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">
+              {statistics?.down || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Need attention
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg Response</CardTitle>
+            <Zap className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {statistics?.averageLatency ? `${Math.round(statistics.averageLatency)}ms` : '-'}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Response time
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Endpoints Management */}
       <Card>
         <CardHeader>
-          <CardTitle>Adicionar endpoint</CardTitle>
-          <CardDescription>Informe a URL a ser monitorada e a frequência de checagem.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleAdd} className="grid gap-4 md:grid-cols-12">
-            <div className="md:col-span-5">
-              <Label htmlFor="url">URL do backend</Label>
-              <div className="flex items-center gap-2 mt-2">
-                <LinkIcon className="h-4 w-4 text-muted-foreground" />
-                <Input id="url" placeholder="https://api.exemplo.com/health" value={url} onChange={(e) => setUrl(e.target.value)} />
-              </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Endpoint Monitoring</CardTitle>
+              <CardDescription>
+                Monitor your APIs and services in real-time
+              </CardDescription>
             </div>
+            <div className="flex items-center gap-2">
+              {selectedEndpoints.length > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkToggle(true)}
+                    disabled={toggleMultiple.isPending}
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Enable ({selectedEndpoints.length})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkToggle(false)}
+                    disabled={toggleMultiple.isPending}
+                  >
+                    <Pause className="h-4 w-4 mr-2" />
+                    Disable ({selectedEndpoints.length})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkTest}
+                    disabled={testMultiple.isPending}
+                  >
+                    <TestTube className="h-4 w-4 mr-2" />
+                    Test ({selectedEndpoints.length})
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    disabled={deleteMultiple.isPending}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete ({selectedEndpoints.length})
+                  </Button>
+                </>
+              )}
 
-            <div className="md:col-span-2">
-              <Label htmlFor="method">Método</Label>
-              <Select value={method} onValueChange={(v) => setMethod(v as any)}>
-                <SelectTrigger id="method" className="mt-2"><SelectValue placeholder="GET" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="GET">GET</SelectItem>
-                  <SelectItem value="HEAD">HEAD</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="md:col-span-2">
-              <Label htmlFor="interval">Intervalo (seg)</Label>
-              <Input id="interval" type="number" min={5} step={5} className="mt-2" value={intervalSec}
-                onChange={(e) => setIntervalSec(Number(e.target.value))} />
-            </div>
-
-            <div className="md:col-span-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="webhook">Webhook (opcional)</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <PlugZap className="h-4 w-4 text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      Informe um URL para ser chamado quando o status mudar (ex: Zapier). Requisição com JSON e no-cors.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <Input id="webhook" placeholder="https://hooks.zapier.com/..." className="mt-2" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} />
-            </div>
-
-            <div className="md:col-span-12">
-              <Button type="submit" disabled={isAdding}>
-                Adicionar
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchEndpoints()}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
               </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Endpoints monitorados</CardTitle>
-          <CardDescription>Resultados em tempo real. Observação: CORS pode impedir a leitura do status em alguns servidores.</CardDescription>
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Endpoint
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Add New Endpoint</DialogTitle>
+                    <DialogDescription>
+                      Monitor a new API endpoint or service
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="url">URL</Label>
+                      <Input
+                        id="url"
+                        placeholder="https://api.example.com/health"
+                        value={formData.url}
+                        onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="method">HTTP Method</Label>
+                      <Select
+                        value={formData.method}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, method: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {HTTP_METHODS.map(method => (
+                            <SelectItem key={method} value={method}>{method}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="interval">Check Interval (seconds)</Label>
+                      <Input
+                        id="interval"
+                        type="number"
+                        min="5"
+                        value={formData.intervalSec}
+                        onChange={(e) => setFormData(prev => ({ ...prev, intervalSec: parseInt(e.target.value) || 60 }))}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="webhook">Webhook URL (optional)</Label>
+                      <Input
+                        id="webhook"
+                        placeholder="https://hooks.slack.com/..."
+                        value={formData.webhookUrl}
+                        onChange={(e) => setFormData(prev => ({ ...prev, webhookUrl: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="enabled"
+                        checked={formData.enabled}
+                        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enabled: checked }))}
+                      />
+                      <Label htmlFor="enabled">Enable monitoring</Label>
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button
+                      onClick={handleCreateEndpoint}
+                      disabled={createEndpoint.isPending || !formData.url}
+                    >
+                      {createEndpoint.isPending ? <LoadingSpinner className="h-3 w-3 mr-2" /> : null}
+                      Add Endpoint
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Endpoint</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Latência</TableHead>
-                  <TableHead>Última checagem</TableHead>
-                  <TableHead>Intervalo</TableHead>
-                  <TableHead>Método</TableHead>
-                  <TableHead>Webhook</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {endpoints.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground">Nenhum endpoint cadastrado.</TableCell>
-                  </TableRow>
-                ) : (
-                  endpoints.map((ep) => {
-                    const hostname = (() => {
-                      try { return new URL(ep.url).host; } catch { return ep.url; }
-                    })();
-                    const statusBadge = ep.lastStatus === "up" ? (
-                      <Badge variant="outline" className="border-green-500/40 text-green-600 dark:text-green-400">Ativo</Badge>
-                    ) : ep.lastStatus === "down" ? (
-                      <Badge variant="outline" className="border-red-500/40 text-red-600 dark:text-red-400">Inativo</Badge>
-                    ) : (
-                      <Badge variant="secondary">Desconhecido</Badge>
-                    );
-                    return (
-                      <TableRow key={ep.id}>
-                        <TableCell className="max-w-[280px] truncate" title={ep.url}>
-                          <div className="font-medium">{hostname}</div>
-                          <div className="text-xs text-muted-foreground truncate">{ep.url}</div>
-                        </TableCell>
-                        <TableCell>{statusBadge}</TableCell>
-                        <TableCell>{ep.lastStatusCode ?? "—"}</TableCell>
-                        <TableCell>{fmtMs(ep.lastLatencyMs)}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">{fmtDate(ep.lastCheckedAt)}</div>
-                          {ep.error && <div className="text-xs text-muted-foreground truncate max-w-[220px]" title={ep.error}>{ep.error}</div>}
-                        </TableCell>
-                        <TableCell>{ep.intervalSec}s</TableCell>
-                        <TableCell>{ep.method}</TableCell>
-                        <TableCell>{ep.webhookUrl ? <Badge variant="outline">Ativado</Badge> : <span className="text-muted-foreground text-xs">—</span>}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end items-center gap-2">
-                            <Button size="icon" variant="ghost" onClick={() => checkNow(ep.id)} title="Checar agora">
-                              <RefreshCw className="h-4 w-4" />
-                            </Button>
-                            <Switch checked={ep.enabled} onCheckedChange={(v) => updateEndpoint(ep.id, { enabled: v })} />
-                            <Button size="icon" variant="ghost" onClick={() => removeEndpoint(ep.id)} title="Remover">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          {endpoints.length === 0 ? (
+            <div className="text-center py-8">
+              <Globe className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No endpoints configured</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Add your first endpoint to start monitoring
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {endpoints.map((endpoint) => (
+                <div
+                  key={endpoint.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedEndpoints.includes(endpoint.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedEndpoints(prev => [...prev, endpoint.id]);
+                        } else {
+                          setSelectedEndpoints(prev => prev.filter(id => id !== endpoint.id));
+                        }
+                      }}
+                      className="rounded"
+                    />
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-medium truncate">{endpoint.url}</h3>
+                        {getStatusBadge(endpoint.lastStatus)}
+                        <Badge variant="outline" className="text-xs">
+                          {endpoint.method}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span>
+                          Interval: {endpoint.intervalSec}s
+                        </span>
+                        {endpoint.lastLatencyMs && (
+                          <span>
+                            Latency: {endpoint.lastLatencyMs}ms
+                          </span>
+                        )}
+                        {endpoint.lastCheckedAt && (
+                          <span>
+                            Last check: {format(new Date(endpoint.lastCheckedAt), 'MMM dd, HH:mm')}
+                          </span>
+                        )}
+                        {endpoint.error && (
+                          <span className="text-destructive">
+                            Error: {endpoint.error}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleTestEndpoint(endpoint.id)}
+                      disabled={testEndpoint.isPending}
+                    >
+                      <TestTube className="h-4 w-4" />
+                    </Button>
+                    <Switch
+                      checked={endpoint.enabled}
+                      onCheckedChange={(checked) => handleToggleEndpoint(endpoint.id, checked)}
+                      disabled={toggleEndpoint.isPending}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteEndpoint(endpoint.id)}
+                      disabled={deleteEndpoint.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
-    </section>
+    </div>
   );
 }

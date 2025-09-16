@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import LoadingSpinner from './ui/loading-spinner';
 
 export function UserMenu() {
   const navigate = useNavigate();
@@ -100,11 +101,11 @@ export function UserMenu() {
           disabled={isLoading}
           className="text-red-600 focus:text-red-600"
         >
-          {/* {isLoading ? (
+          {isLoading ? (
             <LoadingSpinner className="mr-2 h-4 w-4" />
           ) : (
             <LogOut className="mr-2 h-4 w-4" />
-          )} */}
+          )}
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>
@@ -160,11 +161,11 @@ export function UserMenuCompact() {
         disabled={isLoading}
         className="text-red-600 hover:text-red-700"
       >
-        {/* {isLoading ? (
+        {isLoading ? (
           <LoadingSpinner className="h-4 w-4" />
         ) : (
           <LogOut className="h-4 w-4" />
-        )} */}
+        )}
         <LogOut className="h-4 w-4" />
       </Button>
     </div>
