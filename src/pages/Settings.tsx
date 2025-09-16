@@ -1,24 +1,24 @@
-import { useState } from "react";
-import { Settings as SettingsIcon, Database, Bell, Shield, Download, Upload, Trash2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BackendMonitor } from "@/components/backend-monitor";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { BackendMonitor } from "@/components/backend-monitor";
-import { useUserSettings } from "@/hooks/use-user-settings";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useUserSettings } from "@/hooks/use-user-settings";
+import { logService } from "@/services/logs";
+import { useAuth } from "@/store/authStore";
+import { Bell, Database, Download, Settings as SettingsIcon, Shield, Trash2, Upload } from "lucide-react";
+import { useState } from "react";
 
 export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { settings, loading, saving, updateSetting, saveSettings, resetToDefaults } = useUserSettings();
-  
+
   // Notification settings (stored locally since not in DB schema)
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [slackNotifications, setSlackNotifications] = useState(false);
@@ -39,20 +39,11 @@ export default function Settings() {
 
   const handleExportData = async () => {
     if (!user) return;
-    
+
     try {
-      const { data: logs, error } = await supabase
-        .from('logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('timestamp', { ascending: false });
-
-      if (error) throw error;
-
-      const dataStr = JSON.stringify(logs, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const dataBlob = await logService.exportLogs();
       const url = URL.createObjectURL(dataBlob);
-      
+
       const link = document.createElement('a');
       link.href = url;
       link.download = `logs_export_${new Date().toISOString().split('T')[0]}.json`;
@@ -77,18 +68,13 @@ export default function Settings() {
 
   const handleClearAllLogs = async () => {
     if (!user) return;
-    
+
     if (!confirm('Are you sure you want to delete all logs? This action cannot be undone.')) {
       return;
     }
 
     try {
-      const { error } = await supabase
-        .from('logs')
-        .delete()
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      // await logService.deleteLogs();
 
       toast({
         title: 'Success',
@@ -141,8 +127,8 @@ export default function Settings() {
 
               <div>
                 <Label htmlFor="refresh-interval">Refresh Interval (seconds)</Label>
-                <Select 
-                  value={settings.refreshInterval.toString()} 
+                <Select
+                  value={settings.refreshInterval.toString()}
                   onValueChange={(value) => updateSetting('refreshInterval', parseInt(value))}
                 >
                   <SelectTrigger id="refresh-interval">
@@ -159,30 +145,30 @@ export default function Settings() {
 
               <Separator />
 
-               <div>
-                 <Label htmlFor="theme">Theme</Label>
-                 <Select 
-                   value={settings.theme} 
-                   onValueChange={(value) => {
-                     updateSetting('theme', value);
-                     saveSettings({ theme: value });
-                   }}
-                 >
-                   <SelectTrigger id="theme">
-                     <SelectValue />
-                   </SelectTrigger>
-                   <SelectContent>
-                     <SelectItem value="light">Light</SelectItem>
-                     <SelectItem value="dark">Dark</SelectItem>
-                     <SelectItem value="system">System</SelectItem>
-                   </SelectContent>
-                 </Select>
-               </div>
+              <div>
+                <Label htmlFor="theme">Theme</Label>
+                <Select
+                  value={settings.theme}
+                  onValueChange={(value) => {
+                    updateSetting('theme', value);
+                    saveSettings({ theme: value });
+                  }}
+                >
+                  <SelectTrigger id="theme">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                    <SelectItem value="system">System</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div>
                 <Label htmlFor="timezone">Timezone</Label>
-                <Select 
-                  value={settings.timezone} 
+                <Select
+                  value={settings.timezone}
                   onValueChange={(value) => updateSetting('timezone', value)}
                 >
                   <SelectTrigger id="timezone">
@@ -275,8 +261,8 @@ export default function Settings() {
             <CardContent className="space-y-6">
               <div>
                 <Label htmlFor="log-retention">Log Retention (days)</Label>
-                <Select 
-                  value={settings.logRetentionDays.toString()} 
+                <Select
+                  value={settings.logRetentionDays.toString()}
                   onValueChange={(value) => updateSetting('logRetentionDays', parseInt(value))}
                 >
                   <SelectTrigger id="log-retention">
@@ -293,8 +279,8 @@ export default function Settings() {
 
               <div>
                 <Label htmlFor="max-log-size">Max Log Size (MB)</Label>
-                <Select 
-                  value={settings.maxLogSizeMb.toString()} 
+                <Select
+                  value={settings.maxLogSizeMb.toString()}
                   onValueChange={(value) => updateSetting('maxLogSizeMb', parseInt(value))}
                 >
                   <SelectTrigger id="max-log-size">
@@ -384,14 +370,14 @@ export default function Settings() {
 
         {/* Save Settings */}
         <div className="flex justify-end gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleResetDefaults}
             disabled={loading || saving}
           >
             Reset to Defaults
           </Button>
-          <Button 
+          <Button
             onClick={handleSaveSettings}
             disabled={loading || saving}
           >

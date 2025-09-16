@@ -1,81 +1,151 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { ThemeProvider } from "@/contexts/ThemeContext";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { LogSidebar } from "@/components/log-sidebar";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { UserMenu } from "@/components/UserMenu";
-import Dashboard from "./pages/Dashboard";
-import Logs from "./pages/Logs";
-import Alerts from "./pages/Alerts";
-import Analytics from "./pages/Analytics";
-import Search from "./pages/Search";
-import Settings from "./pages/Settings";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { useEffect } from 'react';
+import { Toaster } from 'react-hot-toast';
+import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 
+// Store and hooks
+import { useAuth } from './store/authStore';
+
+// Components
+import { ProtectedRoute } from './components/ProtectedRoute';
+import Alerts from './pages/Alerts';
+import Dashboard from './pages/Dashboard';
+import Logs from './pages/Logs';
+import Settings from './pages/Settings';
+
+// Styles
+import './App.css';
+import { ThemeProvider } from './contexts/ThemeContext';
+import './index.css';
+import Analytics from './pages/Analytics';
+import Auth from './pages/Auth';
+import NotFound from './pages/NotFound';
+import Search from './pages/Search';
+
+// Create a client for React Query
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
+function AppContent() {
+  const { initialize, isLoading, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    // Initialize auth on app start
+    initialize();
+  }, [initialize]);
+
+  // Show loading spinner while initializing
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        {/* <LoadingSpinner /> */}
+      </div>
+    );
+  }
+
+  return (
+    <Router>
+      <Routes>
+        {/* Public routes */}
+        <Route
+          path="/auth"
+          element={
+            isAuthenticated ? <Navigate to="/" replace /> : <Auth />
+          }
+        />
+
+        {/* Protected routes */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/logs"
+          element={
+            <ProtectedRoute>
+              <Logs />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <Analytics />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/alerts"
+          element={
+            <ProtectedRoute>
+              <Alerts />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/search"
+          element={
+            <ProtectedRoute>
+              <Search />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Default redirects */}
+        <Route
+          path="/"
+          element={
+            <Navigate
+              to={isAuthenticated ? "/" : "/auth"}
+              replace
+            />
+          }
+        />
+
+        {/* Catch-all redirect */}
+        <Route
+          path="*"
+          element={
+            <NotFound />
+          }
+        />
+      </Routes>
+    </Router>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <TooltipProvider>
+        <AppContent />
+
+        {/* Toast notifications */}
         <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/*" element={
-              <ProtectedRoute>
-                <SidebarProvider>
-                  <div className="min-h-screen flex w-full bg-background">
-                    <LogSidebar />
-                    <div className="flex-1 flex flex-col">
-                      <header className="h-16 flex items-center justify-between border-b border-border/50 px-6 bg-card">
-                        <div className="flex items-center gap-4">
-                          <SidebarTrigger className="lg:hidden" />
-                          <div>
-                            <h2 className="text-lg font-semibold">Log Management Dashboard</h2>
-                            <p className="text-xs text-muted-foreground">Real-time monitoring and analysis</p>
-                          </div>
-                        </div>
-                         <div className="flex items-center gap-4">
-                           <div className="flex items-center gap-2">
-                             <div className="w-2 h-2 bg-success rounded-full"></div>
-                             <span className="text-sm text-muted-foreground">Connected</span>
-                           </div>
-                           <ThemeToggle />
-                           <UserMenu />
-                         </div>
-                      </header>
-                      <main className="flex-1">
-                        <Routes>
-                          <Route path="/" element={<Dashboard />} />
-                          <Route path="/logs" element={<Logs />} />
-                          <Route path="/alerts" element={<Alerts />} />
-                          <Route path="/analytics" element={<Analytics />} />
-                          <Route path="/search" element={<Search />} />
-                          <Route path="/settings" element={<Settings />} />
-                          <Route path="*" element={<NotFound />} />
-                        </Routes>
-                      </main>
-                    </div>
-                  </div>
-                </SidebarProvider>
-              </ProtectedRoute>
-            } />
-          </Routes>
-        </BrowserRouter>
-        </TooltipProvider>
+
+        {/* React Query Devtools (only in development) */}
+        {import.meta.env.DEV && (
+          <ReactQueryDevtools
+            initialIsOpen={false}
+            position="bottom"
+          />
+        )}
       </ThemeProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+    </QueryClientProvider>
+  );
+}
 
 export default App;

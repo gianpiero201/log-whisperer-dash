@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Database, LogIn, UserPlus, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/store/authStore';
+import { Database, Eye, EyeOff, LogIn, UserPlus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -15,8 +15,8 @@ export default function Auth() {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
-  const { signIn, signUp, user } = useAuth();
+
+  const { login, register, user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if already authenticated
@@ -33,17 +33,10 @@ export default function Auth() {
     setLoading(true);
     try {
       if (isSignUp) {
-        const { error } = await signUp(email, password, displayName);
-        if (!error) {
-          // Don't navigate immediately after signup, user needs to confirm email
-          setEmail('');
-          setPassword('');
-          setDisplayName('');
-          setIsSignUp(false);
-        }
+        await register({ email, password, displayName });
       } else {
-        const { error } = await signIn(email, password);
-        if (!error) {
+        await login({ email, password });
+        if (isAuthenticated) {
           navigate('/');
         }
       }
@@ -94,13 +87,13 @@ export default function Auth() {
               )}
             </CardTitle>
             <CardDescription>
-              {isSignUp 
+              {isSignUp
                 ? 'Crie sua conta para começar a monitorar seus sistemas'
                 : 'Entre com suas credenciais para acessar o dashboard'
               }
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignUp && (
@@ -116,7 +109,7 @@ export default function Auth() {
                   />
                 </div>
               )}
-              
+
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -129,7 +122,7 @@ export default function Auth() {
                   disabled={loading}
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="password">Senha</Label>
                 <div className="relative">
@@ -164,9 +157,9 @@ export default function Auth() {
                   </p>
                 )}
               </div>
-              
-              <Button 
-                type="submit" 
+
+              <Button
+                type="submit"
                 className="w-full"
                 disabled={loading || !email || !password}
               >
@@ -192,9 +185,9 @@ export default function Auth() {
                 )}
               </Button>
             </form>
-            
+
             <Separator className="my-6" />
-            
+
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
                 {isSignUp ? 'Já tem uma conta?' : 'Não tem uma conta?'}
@@ -210,7 +203,7 @@ export default function Auth() {
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Back to Home */}
         <div className="text-center mt-6">
           <Link to="/">

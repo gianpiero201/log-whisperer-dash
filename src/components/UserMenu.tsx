@@ -1,6 +1,12 @@
-import { useState, useEffect } from 'react';
-import { User, Settings, LogOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import {
+  LogOut,
+  Settings,
+  UserCircle
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth, useAuthUser } from '../store/authStore';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { Button } from './ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,80 +14,159 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
-import { ThemeToggle } from '@/components/theme-toggle';
+} from './ui/dropdown-menu';
 
 export function UserMenu() {
-  const { user, signOut } = useAuth();
-  const [profile, setProfile] = useState<{ display_name?: string; avatar_url?: string } | null>(null);
   const navigate = useNavigate();
+  const { logout, isLoading } = useAuth();
+  const user = useAuthUser();
 
-  useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
-
-  const fetchProfile = async () => {
-    if (!user) return;
-    
+  const handleLogout = async () => {
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('display_name, avatar_url')
-        .eq('id', user.id)
-        .maybeSingle();
-      
-      setProfile(data);
+      await logout();
+      navigate('/auth');
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('Logout error:', error);
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
+  const handleProfileClick = () => {
+    navigate('/profile');
   };
 
-  const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Usuário';
-  const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const handleSettingsClick = () => {
+    navigate('/settings');
+  };
+
+  // Get user initials for avatar fallback
+  const getUserInitials = (displayName?: string) => {
+    if (!displayName) return 'U';
+    return displayName
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={profile?.avatar_url} alt={displayName} />
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              {initials}
+        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+          <Avatar className="h-8 w-8">
+            <AvatarImage
+              src={user.avatarUrl}
+              alt={user.displayName || 'User'}
+            />
+            <AvatarFallback>
+              {getUserInitials(user.displayName)}
             </AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{displayName}</p>
+            <p className="text-sm font-medium leading-none">
+              {user.displayName || 'User'}
+            </p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user?.email}
+              ID: {user.id.slice(0, 8)}...
             </p>
           </div>
         </DropdownMenuLabel>
+
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate('/settings')}>
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Configurações</span>
+
+        <DropdownMenuItem onClick={handleProfileClick}>
+          <UserCircle className="mr-2 h-4 w-4" />
+          <span>Profile</span>
         </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={handleSettingsClick}>
+          <Settings className="mr-2 h-4 w-4" />
+          <span>Settings</span>
+        </DropdownMenuItem>
+
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut}>
+
+        <DropdownMenuItem
+          onClick={handleLogout}
+          disabled={isLoading}
+          className="text-red-600 focus:text-red-600"
+        >
+          {/* {isLoading ? (
+            <LoadingSpinner className="mr-2 h-4 w-4" />
+          ) : (
+            <LogOut className="mr-2 h-4 w-4" />
+          )} */}
           <LogOut className="mr-2 h-4 w-4" />
-          <span>Sair</span>
+          <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+// Compact version for mobile
+export function UserMenuCompact() {
+  const navigate = useNavigate();
+  const { logout, isLoading } = useAuth();
+  const user = useAuthUser();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center space-x-3 px-4 py-2">
+      <Avatar className="h-8 w-8">
+        <AvatarImage
+          src={user.avatarUrl}
+          alt={user.displayName || 'User'}
+        />
+        <AvatarFallback>
+          {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+        </AvatarFallback>
+      </Avatar>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 truncate">
+          {user.displayName || 'User'}
+        </p>
+        <p className="text-xs text-gray-500 truncate">
+          ID: {user.id.slice(0, 8)}...
+        </p>
+      </div>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleLogout}
+        disabled={isLoading}
+        className="text-red-600 hover:text-red-700"
+      >
+        {/* {isLoading ? (
+          <LoadingSpinner className="h-4 w-4" />
+        ) : (
+          <LogOut className="h-4 w-4" />
+        )} */}
+        <LogOut className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }

@@ -1,19 +1,17 @@
-import { useState } from "react";
-import { AlertTriangle, CheckCircle, Clock, Settings, Trash2, MoreVertical } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { AlertRuleDialog } from "@/components/alert-rule-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useAlertRules } from "@/hooks/use-alert-rules";
-import { useAlertEvents } from "@/hooks/use-alert-events";
+import { Switch } from "@/components/ui/switch";
+import { useAlertEvents, useAlertRules } from "@/hooks/use-alerts";
 import { formatDistanceToNow } from "date-fns";
+import { AlertTriangle, CheckCircle, Clock, MoreVertical, Settings, Trash2 } from "lucide-react";
 
 export default function Alerts() {
   const { rules, loading: rulesLoading, createRule, updateRule, deleteRule, toggleRule } = useAlertRules();
   const { events, loading: eventsLoading, resolveEvent, deleteEvent, getEventCountsBySeverity } = useAlertEvents();
-  
+
   const eventCounts = getEventCountsBySeverity();
   const activeEvents = events.filter(event => event.status === 'active');
 
@@ -32,7 +30,7 @@ export default function Alerts() {
 
   const getStatusIcon = (status: string, enabled: boolean) => {
     if (!enabled) return <Clock className="h-4 w-4 text-muted-foreground" />;
-    
+
     switch (status) {
       case "active":
         return <AlertTriangle className="h-4 w-4 text-error" />;
@@ -171,9 +169,9 @@ export default function Alerts() {
                           checked={rule.enabled}
                           onCheckedChange={(checked) => toggleRule(rule.id, checked)}
                         />
-                        <AlertRuleDialog 
-                          rule={rule} 
-                          onSave={(data) => updateRule(rule.id, data)} 
+                        <AlertRuleDialog
+                          rule={rule}
+                          onSave={(data) => updateRule(rule.id, data)}
                         />
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -182,7 +180,7 @@ export default function Alerts() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-destructive"
                               onClick={() => handleDeleteRule(rule.id, rule.name)}
                             >
@@ -250,8 +248,8 @@ export default function Alerts() {
                     </div>
                     <div className="flex items-center gap-2">
                       {event.status === 'active' && (
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => resolveEvent(event.id)}
                         >
@@ -265,7 +263,7 @@ export default function Alerts() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => deleteEvent(event.id)}
                           >

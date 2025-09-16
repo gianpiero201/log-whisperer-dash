@@ -1,12 +1,8 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
-
-type UserSettings = Tables<'user_settings'>;
-type UserSettingsInsert = TablesInsert<'user_settings'>;
-type UserSettingsUpdate = TablesUpdate<'user_settings'>;
+import { userSettingsService } from '@/services/user-settings';
+import { useAuth } from '@/store/authStore';
+import { UpdateUserSettingsRequest } from '@/types/api';
+import { useEffect, useState } from 'react';
 
 interface UserSettingsState {
   autoRefresh: boolean;
@@ -36,33 +32,14 @@ export function useUserSettings() {
   // Load user settings
   const loadSettings = async () => {
     if (!user) return;
-    
+
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const userSettings = await userSettingsService.getUserSettings();
 
-      if (error) {
-        console.error('Error loading settings:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load settings',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (data) {
+      if (userSettings) {
         setSettings({
-          autoRefresh: data.auto_refresh,
-          refreshInterval: data.refresh_interval,
-          theme: data.theme,
-          timezone: data.timezone,
-          logRetentionDays: data.log_retention_days,
-          maxLogSizeMb: data.max_log_size_mb,
+          ...userSettings,
         });
       }
     } catch (error) {
@@ -80,37 +57,21 @@ export function useUserSettings() {
   // Save user settings
   const saveSettings = async (newSettings?: Partial<UserSettingsState>) => {
     if (!user) return;
-    
+
     setSaving(true);
     const settingsToSave = { ...settings, ...newSettings };
-    
+
     try {
-      const settingsData: UserSettingsInsert = {
-        user_id: user.id,
-        auto_refresh: settingsToSave.autoRefresh,
-        refresh_interval: settingsToSave.refreshInterval,
+      const settingsData: UpdateUserSettingsRequest = {
+        autoRefresh: settingsToSave.autoRefresh,
+        refreshInterval: settingsToSave.refreshInterval,
         theme: settingsToSave.theme,
         timezone: settingsToSave.timezone,
-        log_retention_days: settingsToSave.logRetentionDays,
-        max_log_size_mb: settingsToSave.maxLogSizeMb,
+        logRetentionDays: settingsToSave.logRetentionDays,
+        maxLogSizeMb: settingsToSave.maxLogSizeMb,
       };
 
-      const { error } = await supabase
-        .from('user_settings')
-        .upsert(settingsData, { 
-          onConflict: 'user_id',
-          ignoreDuplicates: false 
-        });
-
-      if (error) {
-        console.error('Error saving settings:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to save settings',
-          variant: 'destructive',
-        });
-        return;
-      }
+      await userSettingsService.createOrUpdateUserSettings(settingsData);
 
       if (newSettings) {
         setSettings(settingsToSave);
@@ -135,23 +96,10 @@ export function useUserSettings() {
   // Reset to default settings
   const resetToDefaults = async () => {
     if (!user) return;
-    
+
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('user_settings')
-        .delete()
-        .eq('user_id', user.id);
-
-      if (error) {
-        console.error('Error resetting settings:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to reset settings',
-          variant: 'destructive',
-        });
-        return;
-      }
+      userSettingsService.createOrUpdateUserSettings(DEFAULT_SETTINGS);
 
       setSettings(DEFAULT_SETTINGS);
       toast({

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { logService } from '@/services/logs';
+import { useAuth } from '@/store/authStore';
+import { LogLevel } from '@/types/api';
+import { useEffect, useState } from 'react';
 
 export type MetricData = {
   totalLogs: number;
@@ -31,34 +32,21 @@ export function useMetrics() {
       setLoading(true);
 
       // Get total logs count
-      const { count: totalLogs } = await supabase
-        .from('logs')
-        .select('*', { count: 'exact', head: true });
+      const { total: totalLogs } = await logService.getLogs();
 
       // Get error logs count (last 24 hours)
       const oneDayAgo = new Date();
       oneDayAgo.setHours(oneDayAgo.getHours() - 24);
-      
-      const { count: activeErrors } = await supabase
-        .from('logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('level', 'ERROR')
-        .gte('timestamp', oneDayAgo.toISOString());
+
+      const { total: activeErrors } = await logService.getLogs({ level: LogLevel.ERROR, startDate: oneDayAgo.toISOString() });
 
       // Get logs from last hour for trends
       const oneHourAgo = new Date();
       oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-      
-      const { count: recentLogs } = await supabase
-        .from('logs')
-        .select('*', { count: 'exact', head: true })
-        .gte('timestamp', oneHourAgo.toISOString());
 
-      const { count: recentErrors } = await supabase
-        .from('logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('level', 'ERROR')
-        .gte('timestamp', oneHourAgo.toISOString());
+      const { total: recentLogs } = await logService.getLogs({ startDate: oneHourAgo.toISOString() });
+
+      const { total: recentErrors } = await logService.getLogs({ level: LogLevel.ERROR, startDate: oneHourAgo.toISOString() });
 
       // Calculate system health
       let systemHealth: MetricData['systemHealth'] = 'healthy';
@@ -87,10 +75,10 @@ export function useMetrics() {
 
   useEffect(() => {
     fetchMetrics();
-    
+
     // Refresh metrics every 30 seconds
     const interval = setInterval(fetchMetrics, 30000);
-    
+
     return () => clearInterval(interval);
   }, [user]);
 

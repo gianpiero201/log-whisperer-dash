@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import type { Database } from '@/integrations/supabase/types';
+import { logService } from '@/services/logs';
+import { useAuth } from '@/store/authStore';
+import { LogLevel } from '@/types/api';
+import { useEffect, useState } from 'react';
 
 export type LogEntry = {
   id: number;
   timestamp: string;
-  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  level: LogLevel;
   service?: string;
   message?: string;
   source?: string;
@@ -25,26 +25,20 @@ export function useLogs() {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('logs')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(100);
+      const { items } = await logService.getLogs();
 
-      if (error) throw error;
-      
       // Map the data to match our LogEntry type
-      const mappedLogs: LogEntry[] = (data || []).map(log => ({
+      const mappedLogs: LogEntry[] = (items || []).map(log => ({
         id: log.id,
         timestamp: log.timestamp,
-        level: log.level as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR',
+        level: log.level as LogLevel,
         service: log.service || undefined,
         message: log.message || undefined,
         source: log.source || undefined,
         meta: (log.meta as any) || {},
-        endpoint_id: log.endpoint_id || undefined
+        endpoint_id: log.endpointId || undefined,
       }));
-      
+
       setLogs(mappedLogs);
       setError(null);
     } catch (err) {
@@ -59,15 +53,24 @@ export function useLogs() {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('logs')
-        .insert({
-          ...log,
-          user_id: user.id
-        });
+      // const { error } = await supabase
+      //   .from('logs')
+      //   .insert({
+      //     ...log,
+      //     user_id: user.id
+      //   });
+
+      logService.createLog({
+        endpointId: log.endpoint_id,
+        level: log.level,
+        service: log.service,
+        message: log.message,
+        source: log.source,
+        meta: JSON.stringify(log.meta || {}),
+      })
 
       if (error) throw error;
-      
+
       // Refresh logs after adding
       fetchLogs();
     } catch (err) {
@@ -84,25 +87,25 @@ export function useLogs() {
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
-      .channel('logs-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'logs',
-          filter: `user_id=eq.${user.id}`
-        },
-        () => {
-          fetchLogs();
-        }
-      )
-      .subscribe();
+    // const channel = supabase
+    //   .channel('logs-changes')
+    //   .on(
+    //     'postgres_changes',
+    //     {
+    //       event: '*',
+    //       schema: 'public',
+    //       table: 'logs',
+    //       filter: `user_id=eq.${user.id}`
+    //     },
+    //     () => {
+    //       fetchLogs();
+    //     }
+    //   )
+    //   .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // return () => {
+    //   supabase.removeChannel(channel);
+    // };
   }, [user]);
 
   return {

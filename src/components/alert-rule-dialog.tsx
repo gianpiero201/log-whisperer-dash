@@ -1,15 +1,14 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Edit } from 'lucide-react';
-import type { Tables } from '@/integrations/supabase/types';
+import { Textarea } from '@/components/ui/textarea';
+import { AlertRule } from '@/types/api';
+import { Edit, Plus } from 'lucide-react';
+import { useState } from 'react';
 
-type AlertRule = Tables<'alert_rules'>;
 
 interface AlertRuleDialogProps {
   rule?: AlertRule;
@@ -24,13 +23,13 @@ export function AlertRuleDialog({ rule, onSave, trigger }: AlertRuleDialogProps)
     name: rule?.name || '',
     query: rule?.query || '',
     severity: rule?.severity || 'warning',
-    throttle_seconds: rule?.throttle_seconds || 300,
+    throttle_seconds: rule?.throttleSeconds || 300,
     enabled: rule?.enabled ?? true,
   });
 
   const handleSave = async () => {
     if (!formData.name.trim()) return;
-    
+
     setSaving(true);
     try {
       await onSave(formData);
@@ -102,8 +101,8 @@ export function AlertRuleDialog({ rule, onSave, trigger }: AlertRuleDialogProps)
 
           <div>
             <Label htmlFor="rule-severity">Severity</Label>
-            <Select 
-              value={formData.severity} 
+            <Select
+              value={formData.severity}
               onValueChange={(value: any) => setFormData(prev => ({ ...prev, severity: value }))}
             >
               <SelectTrigger id="rule-severity">
@@ -151,7 +150,7 @@ export function AlertRuleDialog({ rule, onSave, trigger }: AlertRuleDialogProps)
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={handleSave}
             disabled={!formData.name.trim() || loading}
           >

@@ -1,27 +1,55 @@
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import React from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useIsAuthenticated } from '../store/authStore';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  redirectTo?: string;
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+export function ProtectedRoute({
+  children,
+  redirectTo = '/login'
+}: ProtectedRouteProps) {
+  const isAuthenticated = useIsAuthenticated();
+  const location = useLocation();
 
-  if (loading) {
+  // If user is not authenticated, redirect to login
+  if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
+      <Navigate
+        to={redirectTo}
+        state={{ from: location }}
+        replace
+      />
     );
   }
 
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
+  // User is authenticated, render the protected component
   return <>{children}</>;
+}
+
+// Higher-order component version for class components (if needed)
+export function withAuth<P extends object>(Component: React.ComponentType<P>) {
+  return function AuthenticatedComponent(props: P) {
+    return (
+      <ProtectedRoute>
+        <Component {...props} />
+      </ProtectedRoute>
+    );
+  };
+}
+
+// Hook to check authentication with loading state
+export function useAuthGuard() {
+  const isAuthenticated = useIsAuthenticated();
+
+  return {
+    isAuthenticated,
+    requireAuth: () => {
+      if (!isAuthenticated) {
+        throw new Error('Authentication required');
+      }
+    }
+  };
 }
