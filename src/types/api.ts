@@ -86,9 +86,9 @@ export interface LogQuery {
 
 // Endpoint Types
 export enum EndpointStatus {
-    UP = 'up',
-    DOWN = 'down',
-    UNKNOWN = 'unknown'
+    UP = 0,
+    DOWN = 1,
+    UNKNOWN = 2
 }
 
 export interface Endpoint {

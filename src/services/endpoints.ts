@@ -36,7 +36,7 @@ export interface UpdateEndpointRequest {
 }
 
 export interface EndpointCheckResult {
-    status: 'up' | 'down' | 'unknown';
+    status: EndpointStatus; //'up' | 'down' | 'unknown';
     statusCode?: number;
     responseTimeMs?: number;
     error?: string;

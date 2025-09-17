@@ -1,118 +1,273 @@
-import { logService } from '@/services/logs';
-import { useAuth } from '@/store/authStore';
-import { LogLevel } from '@/types/api';
-import { useEffect, useState } from 'react';
+// src/hooks/use-logs.ts - Hook para gerenciar logs com React Query
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
+import { toast } from '../components/ui/use-toast';
 
-export type LogEntry = {
+// Temporary mock data structure until we implement the actual log service
+interface LogEntry {
   id: number;
   timestamp: string;
-  level: LogLevel;
+  level: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
   service?: string;
   message?: string;
   source?: string;
-  meta: Record<string, any>;
-  endpoint_id?: string;
+  endpointId?: string;
+}
+
+interface LogFilters {
+  level?: string;
+  service?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+interface PaginatedLogs {
+  items: LogEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// Mock service - replace with actual logService when available
+const mockLogService = {
+  async getLogs(filters: LogFilters = {}): Promise<PaginatedLogs> {
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Mock data
+    const mockLogs: LogEntry[] = [
+      {
+        id: 1,
+        timestamp: new Date().toISOString(),
+        level: 'INFO',
+        service: 'api-gateway',
+        message: 'Request processed successfully',
+        source: 'http-handler'
+      },
+      {
+        id: 2,
+        timestamp: new Date(Date.now() - 60000).toISOString(),
+        level: 'ERROR',
+        service: 'database',
+        message: 'Connection timeout',
+        source: 'connection-pool'
+      },
+      {
+        id: 3,
+        timestamp: new Date(Date.now() - 120000).toISOString(),
+        level: 'WARN',
+        service: 'auth-service',
+        message: 'Invalid token provided',
+        source: 'jwt-middleware'
+      },
+      {
+        id: 4,
+        timestamp: new Date(Date.now() - 180000).toISOString(),
+        level: 'DEBUG',
+        service: 'cache-service',
+        message: 'Cache hit for key: user_123',
+        source: 'redis-client'
+      },
+      {
+        id: 5,
+        timestamp: new Date(Date.now() - 240000).toISOString(),
+        level: 'ERROR',
+        service: 'payment-service',
+        message: 'Payment processing failed',
+        source: 'stripe-webhook'
+      }
+    ];
+
+    // Apply filters
+    let filteredLogs = mockLogs;
+
+    if (filters.level && filters.level !== 'all') {
+      filteredLogs = filteredLogs.filter(log => log.level === filters.level);
+    }
+
+    if (filters.service && filters.service !== 'all') {
+      filteredLogs = filteredLogs.filter(log => log.service === filters.service);
+    }
+
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filteredLogs = filteredLogs.filter(log =>
+        log.message?.toLowerCase().includes(searchLower) ||
+        log.service?.toLowerCase().includes(searchLower) ||
+        log.source?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    const page = filters.page || 1;
+    const pageSize = filters.pageSize || 50;
+    const total = filteredLogs.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const items = filteredLogs.slice(startIndex, startIndex + pageSize);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages
+    };
+  },
+
+  async createLog(data: Partial<LogEntry>): Promise<LogEntry> {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return {
+      id: Math.floor(Math.random() * 10000),
+      timestamp: new Date().toISOString(),
+      level: 'INFO',
+      ...data
+    } as LogEntry;
+  },
+
+  async deleteLog(id: number): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
 };
 
-export function useLogs() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+export interface UseLogsOptions {
+  page?: number;
+  pageSize?: number;
+  level?: string;
+  service?: string;
+  search?: string;
+  autoRefresh?: boolean;
+  refreshInterval?: number;
+}
 
-  const fetchLogs = async () => {
-    if (!user) return;
+export interface UseLogsResult {
+  // Data
+  logs: LogEntry[];
+  loading: boolean;
+  error: string | null;
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
 
-    try {
-      setLoading(true);
-      const { items } = await logService.getLogs();
+  // Actions
+  createLog: (data: Partial<LogEntry>) => Promise<void>;
+  deleteLog: (id: number) => Promise<void>;
+  refetch: () => void;
 
-      // Map the data to match our LogEntry type
-      const mappedLogs: LogEntry[] = (items || []).map(log => ({
-        id: log.id,
-        timestamp: log.timestamp,
-        level: log.level as LogLevel,
-        service: log.service || undefined,
-        message: log.message || undefined,
-        source: log.source || undefined,
-        meta: (log.meta as any) || {},
-        endpoint_id: log.endpointId || undefined,
-      }));
+  // Filters
+  setFilters: (filters: Partial<UseLogsOptions>) => void;
+  filters: UseLogsOptions;
+}
 
-      setLogs(mappedLogs);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching logs:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao carregar logs');
-    } finally {
-      setLoading(false);
+const QUERY_KEY = 'logs';
+
+export function useLogs(options: UseLogsOptions = {}): UseLogsResult {
+  const queryClient = useQueryClient();
+
+  const [filters, setFilters] = useState<UseLogsOptions>({
+    page: 1,
+    pageSize: 50,
+    autoRefresh: true,
+    refreshInterval: 30000, // 30 seconds
+    ...options
+  });
+
+  // Main query for fetching logs
+  const {
+    data: logsData,
+    isLoading,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: [QUERY_KEY, filters],
+    queryFn: () => mockLogService.getLogs({
+      page: filters.page,
+      pageSize: filters.pageSize,
+      level: filters.level,
+      service: filters.service,
+      search: filters.search
+    }),
+    refetchInterval: filters.autoRefresh ? filters.refreshInterval : false,
+    refetchIntervalInBackground: false,
+    staleTime: 10000, // 10 seconds
+  });
+
+  // Create log mutation
+  const createMutation = useMutation({
+    mutationFn: (data: Partial<LogEntry>) => mockLogService.createLog(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      toast({
+        title: 'Log criado',
+        description: 'O log foi adicionado com sucesso.',
+        variant: 'default'
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro ao criar log',
+        description: error.message,
+        variant: 'destructive'
+      });
     }
-  };
+  });
 
-  const addLog = async (log: Omit<LogEntry, 'id' | 'user_id'>) => {
-    if (!user) return;
-
-    try {
-      // const { error } = await supabase
-      //   .from('logs')
-      //   .insert({
-      //     ...log,
-      //     user_id: user.id
-      //   });
-
-      logService.createLog({
-        endpointId: log.endpoint_id,
-        level: log.level,
-        service: log.service,
-        message: log.message,
-        source: log.source,
-        meta: JSON.stringify(log.meta || {}),
-      })
-
-      if (error) throw error;
-
-      // Refresh logs after adding
-      fetchLogs();
-    } catch (err) {
-      console.error('Error adding log:', err);
-      throw err;
+  // Delete log mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => mockLogService.deleteLog(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      toast({
+        title: 'Log removido',
+        description: 'O log foi removido com sucesso.',
+        variant: 'default'
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro ao remover log',
+        description: error.message,
+        variant: 'destructive'
+      });
     }
-  };
+  });
 
-  useEffect(() => {
-    fetchLogs();
-  }, [user]);
+  // Action handlers
+  const createLog = useCallback(async (data: Partial<LogEntry>) => {
+    await createMutation.mutateAsync(data);
+  }, [createMutation]);
 
-  // Set up real-time subscription
-  useEffect(() => {
-    if (!user) return;
+  const deleteLog = useCallback(async (id: number) => {
+    await deleteMutation.mutateAsync(id);
+  }, [deleteMutation]);
 
-    // const channel = supabase
-    //   .channel('logs-changes')
-    //   .on(
-    //     'postgres_changes',
-    //     {
-    //       event: '*',
-    //       schema: 'public',
-    //       table: 'logs',
-    //       filter: `user_id=eq.${user.id}`
-    //     },
-    //     () => {
-    //       fetchLogs();
-    //     }
-    //   )
-    //   .subscribe();
-
-    // return () => {
-    //   supabase.removeChannel(channel);
-    // };
-  }, [user]);
+  const updateFilters = useCallback((newFilters: Partial<UseLogsOptions>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  }, []);
 
   return {
-    logs,
-    loading,
-    error,
-    refetch: fetchLogs,
-    addLog
+    // Data
+    logs: logsData?.items || [],
+    loading: isLoading || createMutation.isPending || deleteMutation.isPending,
+    error: error?.message || null,
+    totalCount: logsData?.total || 0,
+    totalPages: logsData?.totalPages || 0,
+    currentPage: logsData?.page || 1,
+
+    // Actions
+    createLog,
+    deleteLog,
+    refetch,
+
+    // Filters
+    setFilters: updateFilters,
+    filters
   };
+}
+
+// Simple compatibility hook for components that just need logs array
+export function useLogsSimple() {
+  const { logs, loading, refetch } = useLogs();
+  return { logs, loading, refetch };
 }
