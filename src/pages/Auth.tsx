@@ -43,7 +43,7 @@ export default function Auth() {
   // Redirect if already authenticated
   useEffect(() => {
     if (user) {
-      navigate('/dashboard');
+      navigate('/');
     }
   }, [user, navigate]);
 
@@ -73,7 +73,7 @@ export default function Auth() {
 
     try {
       await login({ email: loginData.email.trim(), password: loginData.password });
-      navigate('/dashboard');
+      navigate('/');
     } catch (err: any) {
       let errorMessage = 'Erro ao fazer login';
 
@@ -116,7 +116,7 @@ export default function Auth() {
 
     try {
       await register({ email: registerData.email.trim(), password: registerData.password, displayName: registerData.fullName.trim() });
-      navigate('/dashboard');
+      navigate('/');
     } catch (err: any) {
 
       let errorMessage = 'Erro ao criar conta';

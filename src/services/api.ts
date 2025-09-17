@@ -128,32 +128,32 @@ class ApiClient {
     }
 
     // Generic GET method
-    async get<T>(url: string, params?: any): Promise<T> {
-        const response = await this.client.get<T>(url, { params });
+    async get<T>(url: string, params?: any): Promise<ApiResponse<T>> {
+        const response = await this.client.get<ApiResponse<T>>(url, { params });
         return response.data;
     }
 
     // Generic POST method
-    async post<T>(url: string, data?: any): Promise<T> {
-        const response = await this.client.post<T>(url, data);
+    async post<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+        const response = await this.client.post<ApiResponse<T>>(url, data);
         return response.data;
     }
 
     // Generic PUT method
-    async put<T>(url: string, data?: any): Promise<T> {
-        const response = await this.client.put<T>(url, data);
+    async put<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+        const response = await this.client.put<ApiResponse<T>>(url, data);
         return response.data;
     }
 
     // Generic DELETE method
-    async delete<T>(url: string): Promise<T> {
-        const response = await this.client.delete<T>(url);
+    async delete<T>(url: string): Promise<ApiResponse<T>> {
+        const response = await this.client.delete<ApiResponse<T>>(url);
         return response.data;
     }
 
     // Generic PATCH method
-    async patch<T>(url: string, data?: any): Promise<T> {
-        const response = await this.client.patch<T>(url, data);
+    async patch<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+        const response = await this.client.patch<ApiResponse<T>>(url, data);
         return response.data;
     }
 

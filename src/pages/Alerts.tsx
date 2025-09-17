@@ -46,7 +46,7 @@ export function Alerts() {
 
   // Data hooks
   const {
-    data: alertRules = [],
+    data: alertRules,
     isPending: loadingRules,
     error: rulesError,
     refetch: refetchRules
@@ -480,7 +480,7 @@ export function Alerts() {
             : 'text-muted-foreground hover:text-foreground'
             }`}
         >
-          Alert Rules ({alertRules.length})
+          Alert Rules ({alertRules.items.length})
         </button>
         <button
           onClick={() => setActiveTab('events')}
@@ -544,7 +544,7 @@ export function Alerts() {
               <div className="flex items-center justify-center p-8">
                 <LoadingSpinner text="Loading alert rules..." />
               </div>
-            ) : alertRules.length === 0 ? (
+            ) : alertRules.items.length === 0 ? (
               <div className="text-center py-8">
                 <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">No alert rules configured</p>
@@ -554,7 +554,7 @@ export function Alerts() {
               </div>
             ) : (
               <div className="space-y-2">
-                {alertRules.map((rule) => (
+                {alertRules.items.map((rule) => (
                   <div
                     key={rule.id}
                     className={`flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 ${selectedRules.includes(rule.id) ? 'bg-accent/50' : ''

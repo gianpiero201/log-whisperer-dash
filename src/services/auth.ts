@@ -1,5 +1,4 @@
 import type {
-    ApiResponse,
     AuthResponse,
     LoginRequest,
     RegisterRequest,
@@ -14,7 +13,7 @@ class AuthService {
      * Faz login do usuário
      */
     async login(credentials: LoginRequest): Promise<AuthResponse> {
-        const response = await apiClient.post<ApiResponse<AuthResponse>>(
+        const response = await apiClient.post<AuthResponse>(
             '/auth/login',
             credentials
         );
@@ -31,7 +30,7 @@ class AuthService {
      * Registra novo usuário
      */
     async register(userData: RegisterRequest): Promise<AuthResponse> {
-        const response = await apiClient.post<ApiResponse<AuthResponse>>(
+        const response = await apiClient.post<AuthResponse>(
             '/auth/register',
             userData
         );
@@ -54,7 +53,7 @@ class AuthService {
             throw new Error('No refresh token available');
         }
 
-        const response = await apiClient.post<ApiResponse<AuthResponse>>(
+        const response = await apiClient.post<AuthResponse>(
             '/auth/refresh',
             { refreshToken }
         );
@@ -71,7 +70,7 @@ class AuthService {
      * Obtém o perfil do usuário atual
      */
     async getCurrentUser(): Promise<User> {
-        const response = await apiClient.get<ApiResponse<User>>('/auth/me');
+        const response = await apiClient.get<User>('/auth/me');
 
         if (response.success && response.data) {
             // Atualiza os dados do usuário no localStorage
@@ -86,7 +85,7 @@ class AuthService {
      * Atualiza o perfil do usuário
      */
     async updateProfile(profileData: Partial<User>): Promise<User> {
-        const response = await apiClient.put<ApiResponse<User>>(
+        const response = await apiClient.put<User>(
             '/auth/me',
             profileData
         );

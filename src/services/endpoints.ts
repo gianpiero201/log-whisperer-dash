@@ -1,473 +1,136 @@
-import type {
-    ApiResponse,
-    CreateEndpointRequest,
-    Endpoint,
-    UpdateEndpointRequest
-} from '../types/api';
-import { apiClient } from './api';
+// src/services/endpointService.ts
+
+import { EndpointStatus, PaginatedResponse } from "@/types/api";
+import { apiClient } from "./api";
+
+export interface Endpoint {
+    id: string;
+    userId: string;
+    url: string;
+    method: string;
+    intervalSec: number;
+    webhookUrl?: string;
+    enabled: boolean;
+    lastStatus: EndpointStatus;// 'up' | 'down' | 'unknown';
+    lastStatusCode?: number;
+    lastLatencyMs?: number;
+    lastCheckedAt?: string;
+    error?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreateEndpointRequest {
+    url: string;
+    method?: string;
+    intervalSec?: number;
+    webhookUrl?: string;
+}
+
+export interface UpdateEndpointRequest {
+    url?: string;
+    method?: string;
+    intervalSec?: number;
+    webhookUrl?: string;
+    enabled?: boolean;
+}
+
+export interface EndpointCheckResult {
+    status: 'up' | 'down' | 'unknown';
+    statusCode?: number;
+    responseTimeMs?: number;
+    error?: string;
+}
+
+export interface EndpointStats {
+    endpointId: string;
+    totalChecks: number;
+    upChecks: number;
+    downChecks: number;
+    uptimePercentage: number;
+    averageResponseTime: number;
+    startDate: string;
+    endDate: string;
+}
+
+export interface EndpointFilters {
+    page?: number;
+    pageSize?: number;
+    status?: 'up' | 'down' | 'unknown';
+    enabled?: boolean;
+    search?: string;
+}
 
 class EndpointService {
+    async getEndpoints(filters: EndpointFilters = {}): Promise<PaginatedResponse<Endpoint>> {
+        const params = new URLSearchParams();
 
-    // ==================== ENDPOINT MANAGEMENT ====================
+        if (filters.page) params.append('page', filters.page.toString());
+        if (filters.pageSize) params.append('pageSize', filters.pageSize.toString());
+        if (filters.status) params.append('status', filters.status);
+        if (filters.enabled !== undefined) params.append('enabled', filters.enabled.toString());
+        if (filters.search) params.append('search', filters.search);
 
-    /**
-     * Busca todos os endpoints do usuário
-     */
-    async getEndpoints(): Promise<Endpoint[]> {
-        const response = await apiClient.get<ApiResponse<Endpoint[]>>('/endpoints');
+        const query = params.toString();
+        const endpoint = `/endpoints${query ? `?${query}` : ''}`;
 
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to fetch endpoints');
+        const response = await apiClient.get<PaginatedResponse<Endpoint>>(endpoint);
+        return response.data;
     }
 
-    /**
-     * Busca um endpoint específico por ID
-     */
-    async getEndpointById(id: string): Promise<Endpoint> {
-        const response = await apiClient.get<ApiResponse<Endpoint>>(`/endpoints/${id}`);
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to fetch endpoint');
+    async getEndpoint(id: string): Promise<Endpoint> {
+        const response = await apiClient.get<Endpoint>(`/endpoints/${id}`);
+        return response.data;
     }
 
-    /**
-     * Cria um novo endpoint
-     */
-    async createEndpoint(endpointData: CreateEndpointRequest): Promise<Endpoint> {
-        const response = await apiClient.post<ApiResponse<Endpoint>>('/endpoints', endpointData);
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to create endpoint');
+    async createEndpoint(data: CreateEndpointRequest): Promise<Endpoint> {
+        const response = await apiClient.post<Endpoint>('/endpoints', data);
+        return response.data;
     }
 
-    /**
-     * Atualiza um endpoint existente
-     */
-    async updateEndpoint(id: string, endpointData: UpdateEndpointRequest): Promise<Endpoint> {
-        const response = await apiClient.put<ApiResponse<Endpoint>>(
-            `/endpoints/${id}`,
-            endpointData
-        );
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to update endpoint');
+    async updateEndpoint(id: string, data: UpdateEndpointRequest): Promise<Endpoint> {
+        const response = await apiClient.put<Endpoint>(`/endpoints/${id}`, data);
+        return response.data;
     }
 
-    /**
-     * Remove um endpoint
-     */
     async deleteEndpoint(id: string): Promise<void> {
-        const response = await apiClient.delete<ApiResponse<void>>(`/endpoints/${id}`);
-
-        if (!response.success) {
-            throw new Error(response.message || 'Failed to delete endpoint');
-        }
+        await apiClient.delete(`/endpoints/${id}`);
     }
 
-    /**
-     * Ativa/Desativa um endpoint
-     */
+    async checkEndpoint(id: string): Promise<EndpointCheckResult> {
+        const response = await apiClient.post<EndpointCheckResult>(`/endpoints/${id}/check`);
+        return response.data;
+    }
+
+    async getEndpointStats(
+        id: string,
+        startDate?: string,
+        endDate?: string
+    ): Promise<EndpointStats> {
+        const params = new URLSearchParams();
+        if (startDate) params.append('startDate', startDate);
+        if (endDate) params.append('endDate', endDate);
+
+        const query = params.toString();
+        const endpoint = `/endpoints/${id}/stats${query ? `?${query}` : ''}`;
+
+        const response = await apiClient.get<EndpointStats>(endpoint);
+        return response.data;
+    }
+
     async toggleEndpoint(id: string, enabled: boolean): Promise<Endpoint> {
-        const response = await apiClient.patch<ApiResponse<Endpoint>>(
-            `/endpoints/${id}/toggle`,
-            { enabled }
-        );
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to toggle endpoint');
+        return this.updateEndpoint(id, { enabled });
     }
 
-    // ==================== ENDPOINT MONITORING ====================
+    async toggleMultipleEndpoints(id: string[], enabled: boolean): Promise<Endpoint[]> {
+        let endpointResults: Endpoint[] = [];
 
-    /**
-     * Testa um endpoint manualmente
-     */
-    async testEndpoint(id: string): Promise<{
-        status: 'up' | 'down';
-        statusCode?: number;
-        latency: number;
-        error?: string;
-        timestamp: string;
-    }> {
-        const response = await apiClient.post<ApiResponse<any>>(`/endpoints/${id}/test`);
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to test endpoint');
-    }
-
-    /**
-     * Testa um URL antes de criar o endpoint
-     */
-    async testUrl(url: string, method: string = 'GET'): Promise<{
-        status: 'up' | 'down';
-        statusCode?: number;
-        latency: number;
-        error?: string;
-        timestamp: string;
-    }> {
-        const response = await apiClient.post<ApiResponse<any>>('/endpoints/test-url', {
-            url,
-            method
+        await id.forEach(async endpoint => {
+            endpointResults.push(await this.updateEndpoint(endpoint, { enabled }));
         });
 
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to test URL');
-    }
-
-    /**
-     * Obtém histórico de status de um endpoint
-     */
-    async getEndpointHistory(
-        id: string,
-        startDate?: Date,
-        endDate?: Date,
-        limit: number = 100
-    ): Promise<Array<{
-        timestamp: string;
-        status: 'up' | 'down';
-        statusCode?: number;
-        latency?: number;
-        error?: string;
-    }>> {
-        const params: any = { limit };
-        if (startDate) params.startDate = startDate.toISOString();
-        if (endDate) params.endDate = endDate.toISOString();
-
-        const response = await apiClient.get<ApiResponse<any>>(
-            `/endpoints/${id}/history`,
-            params
-        );
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to fetch endpoint history');
-    }
-
-    /**
-     * Obtém métricas de um endpoint
-     */
-    async getEndpointMetrics(id: string, period: '1h' | '24h' | '7d' | '30d' = '24h'): Promise<{
-        uptime: number;
-        averageLatency: number;
-        totalChecks: number;
-        successfulChecks: number;
-        failedChecks: number;
-        lastCheck: string;
-        status: 'up' | 'down' | 'unknown';
-    }> {
-        const response = await apiClient.get<ApiResponse<any>>(
-            `/endpoints/${id}/metrics`,
-            { period }
-        );
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to fetch endpoint metrics');
-    }
-
-    // ==================== BULK OPERATIONS ====================
-
-    /**
-     * Remove múltiplos endpoints
-     */
-    async deleteMultipleEndpoints(endpointIds: string[]): Promise<void> {
-        const response = await apiClient.post<ApiResponse<void>>('/endpoints/delete-batch', {
-            ids: endpointIds
-        });
-
-        if (!response.success) {
-            throw new Error(response.message || 'Failed to delete endpoints');
-        }
-    }
-
-    /**
-     * Ativa/Desativa múltiplos endpoints
-     */
-    async toggleMultipleEndpoints(endpointIds: string[], enabled: boolean): Promise<void> {
-        const response = await apiClient.post<ApiResponse<void>>('/endpoints/toggle-batch', {
-            ids: endpointIds,
-            enabled
-        });
-
-        if (!response.success) {
-            throw new Error(response.message || 'Failed to toggle endpoints');
-        }
-    }
-
-    /**
-     * Testa múltiplos endpoints
-     */
-    async testMultipleEndpoints(endpointIds: string[]): Promise<Array<{
-        id: string;
-        status: 'up' | 'down';
-        statusCode?: number;
-        latency: number;
-        error?: string;
-        timestamp: string;
-    }>> {
-        const response = await apiClient.post<ApiResponse<any>>('/endpoints/test-batch', {
-            ids: endpointIds
-        });
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to test endpoints');
-    }
-
-    // ==================== FILTERING & SEARCH ====================
-
-    /**
-     * Busca endpoints com filtros
-     */
-    async getFilteredEndpoints(filters: {
-        status?: 'up' | 'down' | 'unknown';
-        method?: string;
-        enabled?: boolean;
-        search?: string;
-    } = {}): Promise<Endpoint[]> {
-        const response = await apiClient.get<ApiResponse<Endpoint[]>>(
-            '/endpoints/filtered',
-            filters
-        );
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to fetch filtered endpoints');
-    }
-
-    /**
-     * Busca apenas endpoints ativos (enabled = true)
-     */
-    async getActiveEndpoints(): Promise<Endpoint[]> {
-        return this.getFilteredEndpoints({ enabled: true });
-    }
-
-    /**
-     * Busca apenas endpoints com problemas (status = down)
-     */
-    async getDownEndpoints(): Promise<Endpoint[]> {
-        return this.getFilteredEndpoints({ status: 'down' });
-    }
-
-    /**
-     * Busca endpoints por método HTTP
-     */
-    async getEndpointsByMethod(method: string): Promise<Endpoint[]> {
-        return this.getFilteredEndpoints({ method });
-    }
-
-    // ==================== STATISTICS & ANALYTICS ====================
-
-    /**
-     * Obtém estatísticas gerais de endpoints
-     */
-    async getEndpointsStatistics(): Promise<{
-        total: number;
-        active: number;
-        inactive: number;
-        up: number;
-        down: number;
-        unknown: number;
-        averageUptime: number;
-        averageLatency: number;
-        methodDistribution: Array<{ method: string; count: number }>;
-        statusDistribution: Array<{ status: string; count: number }>;
-    }> {
-        const response = await apiClient.get<ApiResponse<any>>('/endpoints/statistics');
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to fetch endpoints statistics');
-    }
-
-    /**
-     * Obtém uptime geral de todos os endpoints
-     */
-    async getOverallUptime(period: '1h' | '24h' | '7d' | '30d' = '24h'): Promise<{
-        uptime: number;
-        totalChecks: number;
-        successfulChecks: number;
-        failedChecks: number;
-        period: string;
-    }> {
-        const response = await apiClient.get<ApiResponse<any>>(
-            '/endpoints/uptime',
-            { period }
-        );
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to fetch overall uptime');
-    }
-
-    // ==================== WEBHOOKS ====================
-
-    /**
-     * Obtém histórico de webhooks de um endpoint
-     */
-    async getEndpointWebhooks(
-        id: string,
-        limit: number = 50
-    ): Promise<Array<{
-        id: string;
-        targetUrl: string;
-        success: boolean;
-        statusCode?: number;
-        responseTime: number;
-        error?: string;
-        sentAt: string;
-        payload: any;
-    }>> {
-        const response = await apiClient.get<ApiResponse<any>>(
-            `/endpoints/${id}/webhooks`,
-            { limit }
-        );
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to fetch endpoint webhooks');
-    }
-
-    /**
-     * Testa webhook de um endpoint
-     */
-    async testEndpointWebhook(id: string): Promise<{
-        success: boolean;
-        statusCode?: number;
-        responseTime: number;
-        error?: string;
-        timestamp: string;
-    }> {
-        const response = await apiClient.post<ApiResponse<any>>(`/endpoints/${id}/webhook/test`);
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to test endpoint webhook');
-    }
-
-    // ==================== EXPORT & IMPORT ====================
-
-    /**
-     * Exporta endpoints
-     */
-    async exportEndpoints(format: 'json' | 'csv' = 'json'): Promise<Blob> {
-        const response = await apiClient.getAxiosInstance().get('/endpoints/export', {
-            params: { format },
-            responseType: 'blob'
-        });
-
-        const mimeType = format === 'json' ? 'application/json' : 'text/csv';
-        return new Blob([response.data], { type: mimeType });
-    }
-
-    /**
-     * Importa endpoints
-     */
-    async importEndpoints(file: File): Promise<{
-        imported: number;
-        errors: string[];
-        warnings: string[];
-    }> {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await apiClient.getAxiosInstance().post('/endpoints/import', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
-
-        if (response.data.success) {
-            return response.data.data;
-        }
-
-        throw new Error(response.data.message || 'Failed to import endpoints');
-    }
-
-    // ==================== REAL-TIME MONITORING ====================
-
-    /**
-     * Inicia monitoramento de um endpoint
-     */
-    async startMonitoring(id: string): Promise<void> {
-        const response = await apiClient.post<ApiResponse<void>>(`/endpoints/${id}/start-monitoring`);
-
-        if (!response.success) {
-            throw new Error(response.message || 'Failed to start monitoring');
-        }
-    }
-
-    /**
-     * Para monitoramento de um endpoint
-     */
-    async stopMonitoring(id: string): Promise<void> {
-        const response = await apiClient.post<ApiResponse<void>>(`/endpoints/${id}/stop-monitoring`);
-
-        if (!response.success) {
-            throw new Error(response.message || 'Failed to stop monitoring');
-        }
-    }
-
-    /**
-     * Obtém status em tempo real de todos os endpoints
-     */
-    async getRealTimeStatus(): Promise<Array<{
-        id: string;
-        url: string;
-        status: 'up' | 'down' | 'unknown';
-        lastChecked: string;
-        latency?: number;
-        enabled: boolean;
-    }>> {
-        const response = await apiClient.get<ApiResponse<any>>('/endpoints/realtime-status');
-
-        if (response.success && response.data) {
-            return response.data;
-        }
-
-        throw new Error(response.message || 'Failed to fetch real-time status');
+        return endpointResults;
     }
 }
 
-// Create and export singleton instance
 export const endpointService = new EndpointService();
-
-// Export class for testing
-export default EndpointService;

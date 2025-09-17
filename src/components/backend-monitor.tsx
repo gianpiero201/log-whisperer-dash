@@ -55,7 +55,7 @@ export function BackendMonitor() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   // Data hooks
-  const { data: endpoints = [], isPending: loadingEndpoints, refetch: refetchEndpoints } = useEndpoints();
+  const { data: endpoints, isPending: loadingEndpoints, refetch: refetchEndpoints } = useEndpoints();
   const { data: statistics, isPending: loadingStats } = useEndpointsStatistics();
   const { data: realtimeStatus = [] } = useRealTimeEndpointStatus();
 
@@ -392,7 +392,7 @@ export function BackendMonitor() {
           </div>
         </CardHeader>
         <CardContent>
-          {endpoints.length === 0 ? (
+          {endpoints.items.length === 0 ? (
             <div className="text-center py-8">
               <Globe className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">No endpoints configured</p>
@@ -402,7 +402,7 @@ export function BackendMonitor() {
             </div>
           ) : (
             <div className="space-y-2">
-              {endpoints.map((endpoint) => (
+              {endpoints.items.map((endpoint) => (
                 <div
                   key={endpoint.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50"
