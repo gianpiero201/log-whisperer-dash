@@ -36,7 +36,7 @@ import {
 import { AlertRule, AlertSeverity, UpdateAlertRuleRequest } from '../types/api';
 import { ALERT_SEVERITY } from '../utils/constants';
 
-export function Alerts() {
+export default function Alerts() {
   const [selectedRules, setSelectedRules] = useState<string[]>([]);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
