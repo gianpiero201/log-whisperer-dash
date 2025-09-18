@@ -1,3 +1,4 @@
+import { RealTimeLog } from '@/hooks/use-real-time-logs';
 import {
   keepPreviousData,
   useQuery
@@ -50,13 +51,15 @@ interface LogTableProps {
   autoRefresh?: boolean;
   showFilters?: boolean;
   initialPageSize?: number;
+  logs: RealTimeLog[];
 }
 
 export function LogTable({
   endpointId,
   autoRefresh = false,
   showFilters = true,
-  initialPageSize = 50
+  initialPageSize = 50,
+  logs
 }: LogTableProps) {
   // Filter state
   const [filters, setFilters] = useState<LogQuery>({
@@ -95,7 +98,6 @@ export function LogTable({
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  const logs = logsResponse?.items || [];
   const totalPages = logsResponse?.totalPages || 0;
   const total = logsResponse?.total || 0;
   const currentPage = filters.page || 1;

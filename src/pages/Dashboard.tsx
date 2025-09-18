@@ -1,28 +1,15 @@
-import { Activity, AlertTriangle, Database, TrendingUp } from "lucide-react";
-import { MetricCard } from "@/components/metric-card";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { LogTable } from "@/components/log-table";
-import { BackendMonitor } from "@/components/backend-monitor";
-import { useMetrics } from "@/hooks/use-metrics";
+import { MetricCard } from "@/components/metric-card";
+import { useNotifications } from "@/hooks/use-notifications";
+import { useRealTimeLogs } from "@/hooks/use-real-time-logs";
+import { useRealTimeMonitoring } from "@/hooks/use-real-time-monitoring";
+import { TrendingDown } from "lucide-react";
 
 export default function Dashboard() {
-  const { metrics, loading } = useMetrics();
-
-  const getHealthVariant = () => {
-    switch (metrics.systemHealth) {
-      case 'critical': return 'error';
-      case 'warning': return 'warning';
-      default: return 'success';
-    }
-  };
-
-  const getHealthValue = () => {
-    switch (metrics.systemHealth) {
-      case 'critical': return 'Critical';
-      case 'warning': return 'Warning';
-      default: return 'Healthy';
-    }
-  };
+  const { metrics, isConnected } = useRealTimeMonitoring();
+  const { stats, logs } = useRealTimeLogs();
+  const { unreadCount } = useNotifications();
 
   return (
     <div className="min-h-screen bg-background">
@@ -36,40 +23,28 @@ export default function Dashboard() {
         </div>
 
         {/* Metrics Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div>
+          {/* Show real-time metrics */}
           <MetricCard
-            title="Total Logs"
-            value={loading ? "—" : metrics.totalLogs.toLocaleString()}
-            subtitle="all time"
-            icon={Database}
+            title="Active Endpoints"
+            value={metrics?.activeEndpoints.toString() || "0"}
+            icon={TrendingDown}
           />
-          <MetricCard
-            title="Active Errors"
-            value={loading ? "—" : metrics.activeErrors.toString()}
-            subtitle="last 24 hours"
-            icon={AlertTriangle}
-            variant="error"
-          />
-          <MetricCard
-            title="System Health"
-            value={loading ? "—" : getHealthValue()}
-            subtitle="current status"
-            icon={Activity}
-            variant={getHealthVariant()}
-          />
-          <MetricCard
-            title="Throughput"
-            value={loading ? "—" : `${metrics.throughput}/min`}
-            subtitle="logs per minute"
-            icon={TrendingUp}
-          />
+
+          {/* Connection status indicator */}
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-sm text-muted-foreground">
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
         </div>
 
         {/* Charts Section */}
         <DashboardCharts />
 
         {/* Recent Logs Table */}
-        <LogTable />
+        <LogTable logs={logs} />
       </div>
     </div>
   );

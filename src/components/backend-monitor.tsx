@@ -7,19 +7,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { toast } from "@/components/ui/use-toast";
-import { useBackendMonitor } from "@/hooks/use-backend-monitor";
-import { EndpointStatus } from "@/types/api";
-import { AlertCircle, Link as LinkIcon, PlugZap, RefreshCw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useNotifications } from "@/hooks/use-notifications";
+import { useRealTimeMonitoring } from "@/hooks/use-real-time-monitoring";
+import { toast } from "@/hooks/use-toast";
+import { AUTH_CONFIG } from "@/utils/constants";
+import { Activity, Link as LinkIcon, PlugZap, RefreshCw, Trash2, Wifi, WifiOff } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
 
-// Importar o service que criamos
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// API integration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// Interfaces para o backend
-interface BackendEndpoint {
+interface Endpoint {
   id: string;
-  userId: string;
   url: string;
   method: string;
   intervalSec: number;
@@ -34,24 +33,219 @@ interface BackendEndpoint {
   updatedAt: string;
 }
 
-interface CreateEndpointRequest {
-  url: string;
-  method?: string;
-  intervalSec?: number;
-  webhookUrl?: string;
-}
-
-
 export function BackendMonitor() {
-  const { endpoints, loading, error, addEndpoint, removeEndpoint, updateEndpoint, checkNow, refetch } = useBackendMonitor();
+  // Real-time hooks
+  const {
+    endpoints: realtimeEndpoints,
+    metrics,
+    isConnected,
+    connectionState,
+    requestEndpointCheck,
+    error: connectionError
+  } = useRealTimeMonitoring();
 
+  const { isConnected: notificationsConnected } = useNotifications();
+
+  // Local state
+  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [url, setUrl] = useState("");
   const [method, setMethod] = useState<"GET" | "HEAD" | "POST">("GET");
-  const [intervalSec, setIntervalSec] = useState(60);
+  const [intervalSec, setIntervalSec] = useState<number>(60);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  function isValidUrl(value: string) {
+  // Sync real-time data with local state
+  useEffect(() => {
+    if (realtimeEndpoints.length > 0) {
+      // Update endpoints with real-time data
+      setEndpoints(prev => {
+        const updatedEndpoints = [...prev];
+
+        realtimeEndpoints.forEach(rtEndpoint => {
+          const index = updatedEndpoints.findIndex(e => e.id === rtEndpoint.id);
+          if (index >= 0) {
+            updatedEndpoints[index] = {
+              ...updatedEndpoints[index],
+              lastStatus: rtEndpoint.status,
+              lastStatusCode: rtEndpoint.statusCode,
+              lastLatencyMs: rtEndpoint.responseTimeMs,
+              lastCheckedAt: rtEndpoint.checkedAt,
+              error: rtEndpoint.error,
+              enabled: rtEndpoint.enabled
+            };
+          }
+        });
+
+        return updatedEndpoints;
+      });
+    }
+  }, [realtimeEndpoints]);
+
+  // Fetch initial endpoints data
+  useEffect(() => {
+    fetchEndpoints();
+  }, []);
+
+  const fetchEndpoints = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
+      const response = await fetch(`${API_BASE_URL}/endpoints`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        setEndpoints(data.data.items || []);
+      }
+    } catch (error) {
+      console.error('Error fetching endpoints:', error);
+      toast({
+        title: "❌ Error",
+        description: "Failed to load endpoints",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const addEndpoint = useCallback(async (endpointData: {
+    url: string;
+    method: string;
+    intervalSec: number;
+    webhookUrl?: string;
+  }) => {
+    try {
+      const token = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
+      const response = await fetch(`${API_BASE_URL}/endpoints`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(endpointData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        setEndpoints(prev => [data.data, ...prev]);
+        toast({
+          title: "✅ Endpoint Added",
+          description: "Monitoring started successfully",
+          variant: "default",
+        });
+      }
+    } catch (error) {
+      console.error('Error adding endpoint:', error);
+      throw error;
+    }
+  }, []);
+
+  const removeEndpoint = useCallback(async (id: string) => {
+    try {
+      const token = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
+      const response = await fetch(`${API_BASE_URL}/endpoints/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      setEndpoints(prev => prev.filter(e => e.id !== id));
+      toast({
+        title: "🗑️ Endpoint Removed",
+        description: "Monitoring stopped",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Error removing endpoint:', error);
+      toast({
+        title: "❌ Error",
+        description: "Failed to remove endpoint",
+        variant: "destructive",
+      });
+    }
+  }, []);
+
+  const updateEndpoint = useCallback(async (id: string, updates: Partial<Endpoint>) => {
+    try {
+      const token = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
+      const response = await fetch(`${API_BASE_URL}/endpoints/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        setEndpoints(prev => prev.map(e => e.id === id ? data.data : e));
+      }
+    } catch (error) {
+      console.error('Error updating endpoint:', error);
+      toast({
+        title: "❌ Error",
+        description: "Failed to update endpoint",
+        variant: "destructive",
+      });
+    }
+  }, []);
+
+  const checkNow = useCallback(async (id: string) => {
+    if (isConnected) {
+      // Use real-time check request
+      await requestEndpointCheck(id);
+    } else {
+      // Fallback to HTTP API
+      try {
+        const token = localStorage.getItem(AUTH_CONFIG.TOKEN_KEY);
+        await fetch(`${API_BASE_URL}/endpoints/${id}/check`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        toast({
+          title: "🔄 Check Requested",
+          description: "Endpoint check initiated",
+          variant: "default",
+        });
+      } catch (error) {
+        console.error('Error checking endpoint:', error);
+        toast({
+          title: "❌ Error",
+          description: "Failed to check endpoint",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [isConnected, requestEndpointCheck]);
+
+  function isValidUrl(value: string): boolean {
     try {
       const u = new URL(value);
       return Boolean(u.protocol && u.host);
@@ -65,8 +259,8 @@ export function BackendMonitor() {
 
     if (!isValidUrl(url)) {
       toast({
-        title: "URL inválida",
-        description: "Verifique o formato. Ex: https://api.exemplo.com/health",
+        title: "❌ Invalid URL",
+        description: "Please check the format. Ex: https://api.example.com/health",
         variant: "destructive",
       });
       return;
@@ -74,268 +268,318 @@ export function BackendMonitor() {
 
     if (webhookUrl && !isValidUrl(webhookUrl)) {
       toast({
-        title: "Webhook inválido",
-        description: "Informe um URL válido ou deixe vazio.",
-        variant: "destructive"
+        title: "❌ Invalid Webhook",
+        description: "Please provide a valid URL or leave empty.",
+        variant: "destructive",
       });
       return;
     }
 
     setIsAdding(true);
+
     try {
       await addEndpoint({
         url: url.trim(),
         method,
         intervalSec: Number(intervalSec) || 60,
-        webhookUrl: webhookUrl.trim() || undefined
+        webhookUrl: webhookUrl.trim() || undefined,
       });
 
-      // Limpar form
+      // Reset form
       setUrl("");
       setWebhookUrl("");
       setIntervalSec(60);
       setMethod("GET");
-    } catch (err) {
-      // Erro já tratado no hook
+    } catch (error) {
+      // Error already handled in addEndpoint
     } finally {
       setIsAdding(false);
     }
   };
 
-  const formatLatency = (ms?: number) => (typeof ms === "number" ? `${ms}ms` : "—");
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "—";
-    try {
-      return new Date(dateStr).toLocaleString();
-    } catch {
-      return "—";
-    }
+  const fmtMs = (ms?: number): string => {
+    return ms && typeof ms === 'number' ? `${ms}ms` : "-";
+  };
+
+  const fmtDate = (ts?: string): string => {
+    return ts ? new Date(ts).toLocaleString() : "-";
   };
 
   return (
-    <div className="space-y-6">
-      {error && (
-        <Card className="border-destructive bg-destructive/5">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              <span className="font-medium">Erro de conexão:</span>
-              <span>{error}</span>
-              <Button variant="outline" size="sm" onClick={refetch}>
-                Tentar novamente
-              </Button>
+    <section aria-labelledby="backend-monitor-title" className="space-y-4">
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 id="backend-monitor-title" className="text-2xl font-semibold tracking-tight">
+            Backend Monitoring
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Register URLs for periodic checking with real-time notifications
+          </p>
+        </div>
+
+        {/* Connection Status Indicators */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              {isConnected ? (
+                <Wifi className="h-4 w-4 text-success" />
+              ) : (
+                <WifiOff className="h-4 w-4 text-error" />
+              )}
+              <span className="text-xs text-muted-foreground">
+                Monitoring: {connectionState}
+              </span>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="flex items-center gap-1">
+              {notificationsConnected ? (
+                <Activity className="h-4 w-4 text-success" />
+              ) : (
+                <Activity className="h-4 w-4 text-error" />
+              )}
+              <span className="text-xs text-muted-foreground">
+                Notifications
+              </span>
+            </div>
+          </div>
+
+          <Button
+            onClick={fetchEndpoints}
+            size="sm"
+            variant="outline"
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </header>
+
+      {connectionError && (
+        <div className="p-3 border border-error/20 bg-error/5 rounded-lg">
+          <p className="text-sm text-error">
+            ⚠️ Real-time connection error: {connectionError}
+          </p>
+        </div>
       )}
 
+      {/* Add Endpoint Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Adicionar endpoint</CardTitle>
+          <CardTitle>Add Endpoint</CardTitle>
           <CardDescription>
-            Configure um novo endpoint para monitoramento automático.
+            Enter the URL to be monitored and check frequency.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAdd} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="url">URL do endpoint</Label>
+          <form onSubmit={handleAdd} className="grid gap-4 md:grid-cols-12">
+            {/* URL Input */}
+            <div className="md:col-span-5">
+              <Label htmlFor="url">Backend URL</Label>
+              <div className="flex items-center gap-2 mt-2">
+                <LinkIcon className="h-4 w-4 text-muted-foreground" />
                 <Input
                   id="url"
-                  type="url"
-                  placeholder="https://api.exemplo.com/health"
+                  placeholder="https://api.example.com/health"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="method">Método HTTP</Label>
-                <Select value={method} onValueChange={(v) => setMethod(v as any)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="GET">GET</SelectItem>
-                    <SelectItem value="HEAD">HEAD</SelectItem>
-                    <SelectItem value="POST">POST</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="interval">Intervalo de verificação (segundos)</Label>
-                <Input
-                  id="interval"
-                  type="number"
-                  min="30"
-                  value={intervalSec}
-                  onChange={(e) => setIntervalSec(Number(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Mínimo: 30 segundos
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="webhook">Webhook para notificações (opcional)</Label>
-                <Input
-                  id="webhook"
-                  type="url"
-                  placeholder="https://hooks.zapier.com/..."
-                  value={webhookUrl}
-                  onChange={(e) => setWebhookUrl(e.target.value)}
                 />
               </div>
             </div>
 
-            <Button type="submit" disabled={isAdding || loading}>
-              {isAdding ? "Adicionando..." : "Adicionar Endpoint"}
-            </Button>
+            {/* Method Select */}
+            <div className="md:col-span-2">
+              <Label htmlFor="method">Method</Label>
+              <Select value={method} onValueChange={(v) => setMethod(v as any)}>
+                <SelectTrigger id="method" className="mt-2">
+                  <SelectValue placeholder="GET" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GET">GET</SelectItem>
+                  <SelectItem value="HEAD">HEAD</SelectItem>
+                  <SelectItem value="POST">POST</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Interval Input */}
+            <div className="md:col-span-2">
+              <Label htmlFor="interval">Interval (sec)</Label>
+              <Input
+                id="interval"
+                type="number"
+                min={5}
+                step={5}
+                className="mt-2"
+                value={intervalSec}
+                onChange={(e) => setIntervalSec(Number(e.target.value))}
+              />
+            </div>
+
+            {/* Webhook Input */}
+            <div className="md:col-span-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="webhook">Webhook (optional)</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PlugZap className="h-4 w-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      Provide a URL to be called when status changes (e.g., Zapier).
+                      Request with JSON payload and CORS headers.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Input
+                id="webhook"
+                placeholder="https://hooks.zapier.com/..."
+                className="mt-2"
+                value={webhookUrl}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+              />
+            </div>
+
+            {/* Submit Button */}
+            <div className="md:col-span-12">
+              <Button type="submit" disabled={isAdding} className="w-full md:w-auto">
+                {isAdding ? "Adding..." : "Add Endpoint"}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
 
+      {/* Endpoints Table */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <div>
-            <CardTitle>Endpoints Monitorados</CardTitle>
-            <CardDescription>
-              {endpoints.length} endpoint{endpoints.length !== 1 ? 's' : ''} configurado{endpoints.length !== 1 ? 's' : ''}
-            </CardDescription>
-          </div>
-          <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Monitored Endpoints
+            {metrics && (
+              <Badge variant="outline" className="ml-2">
+                {metrics.totalEndpoints} total • {metrics.endpointsUp} up • {metrics.endpointsDown} down
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Real-time results. Note: CORS may prevent status reading on some servers.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Endpoint</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Latência</TableHead>
-                  <TableHead>Última verificação</TableHead>
-                  <TableHead>Intervalo</TableHead>
-                  <TableHead>Método</TableHead>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Latency</TableHead>
+                  <TableHead>Last Check</TableHead>
+                  <TableHead>Interval</TableHead>
+                  <TableHead>Method</TableHead>
                   <TableHead>Webhook</TableHead>
-                  <TableHead>Ações</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading && endpoints.length === 0 ? (
+                {endpoints.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
-                      <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-2" />
-                      Carregando endpoints...
-                    </TableCell>
-                  </TableRow>
-                ) : endpoints.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                      Nenhum endpoint cadastrado.
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
+                      {isLoading ? "Loading endpoints..." : "No endpoints registered."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  endpoints.map((endpoint) => {
+                  endpoints.map((ep) => {
                     const hostname = (() => {
-                      try { return new URL(endpoint.url).host; } catch { return endpoint.url; }
+                      try {
+                        return new URL(ep.url).host;
+                      } catch {
+                        return ep.url;
+                      }
                     })();
 
-                    const statusBadge = endpoint.lastStatus === EndpointStatus.UP ? (
-                      <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                    const statusBadge = ep.lastStatus === 'up' ? (
+                      <Badge variant="outline" className="border-success/40 text-success">
                         Online
                       </Badge>
-                    ) : endpoint.lastStatus === EndpointStatus.DOWN ? (
-                      <Badge variant="destructive">
+                    ) : ep.lastStatus === 'down' ? (
+                      <Badge variant="outline" className="border-error/40 text-error">
                         Offline
                       </Badge>
                     ) : (
-                      <Badge variant="secondary">
-                        Aguardando
-                      </Badge>
+                      <Badge variant="secondary">Unknown</Badge>
                     );
 
                     return (
-                      <TableRow key={endpoint.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <LinkIcon className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <div className="font-medium">{hostname}</div>
-                              <div className="text-sm text-muted-foreground truncate max-w-xs">
-                                {endpoint.url}
-                              </div>
+                      <TableRow key={ep.id}>
+                        <TableCell className="max-w-[280px] truncate" title={ep.url}>
+                          <div>
+                            <div className="font-medium">{hostname}</div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {ep.url}
                             </div>
                           </div>
                         </TableCell>
+
                         <TableCell>{statusBadge}</TableCell>
-                        <TableCell>{endpoint.lastStatusCode ?? "—"}</TableCell>
-                        <TableCell>{formatLatency(endpoint.lastLatencyMs)}</TableCell>
+
+                        <TableCell>{ep.lastStatusCode ?? "-"}</TableCell>
+
+                        <TableCell>{fmtMs(ep.lastLatencyMs)}</TableCell>
+
                         <TableCell>
-                          <div>{formatDate(endpoint.lastCheckedAt)}</div>
-                          {endpoint.error && (
-                            <div className="text-sm text-destructive truncate max-w-32">
-                              {endpoint.error}
-                            </div>
-                          )}
+                          <div>
+                            <div className="text-sm">{fmtDate(ep.lastCheckedAt)}</div>
+                            {ep.error && (
+                              <div
+                                className="text-xs text-muted-foreground truncate max-w-[220px]"
+                                title={ep.error}
+                              >
+                                {ep.error}
+                              </div>
+                            )}
+                          </div>
                         </TableCell>
-                        <TableCell>{endpoint.intervalSec}s</TableCell>
+
+                        <TableCell>{ep.intervalSec}s</TableCell>
+
+                        <TableCell>{ep.method}</TableCell>
+
                         <TableCell>
-                          <Badge variant="outline">{endpoint.method}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {endpoint.webhookUrl ? (
-                            <Badge variant="outline" className="bg-blue-50">
-                              <PlugZap className="h-3 w-3 mr-1" />
-                              Ativo
-                            </Badge>
+                          {ep.webhookUrl ? (
+                            <Badge variant="outline">Enabled</Badge>
                           ) : (
-                            "—"
+                            <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => checkNow(endpoint.id)}
-                                    disabled={!endpoint.enabled}
-                                  >
-                                    <RefreshCw className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Verificar agora</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+
+                        <TableCell className="text-right">
+                          <div className="flex justify-end items-center gap-2">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => checkNow(ep.id)}
+                              title="Check now"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
 
                             <Switch
-                              checked={endpoint.enabled}
-                              onCheckedChange={(v) => updateEndpoint(endpoint.id, { enabled: v })}
+                              checked={ep.enabled}
+                              onCheckedChange={(checked) =>
+                                updateEndpoint(ep.id, { enabled: checked })
+                              }
                             />
 
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => removeEndpoint(endpoint.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Remover endpoint</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => removeEndpoint(ep.id)}
+                              title="Remove"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -347,6 +591,6 @@ export function BackendMonitor() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </section>
   );
 }
